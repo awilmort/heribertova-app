@@ -269,7 +269,9 @@ The server enforces scope on every query and every `:id` route. The UI only hide
 - `shared/permissions.ts` holds a typed `ROLE_PERMISSIONS` map, e.g. `voters.lookup`, `people.create`, `people.update`, `people.delete`, `people.validate`, `people.export`, `leaders.nominate`, `leaders.promoteManual`, `recintos.assignCoordinator`, `users.manage`, `users.resetPassword`, `dashboards.general`, `reports.view`, `settings.manage`, `voters.import` (superadmin only), `audit.view`.
 - Backend: the `requireAuth` middleware, then `requirePermission('people.create')`, then a service-level `scopeFilter(user)` / `assertInScope(user, person)`.
 - Frontend: `/api/me` returns `{user, person, role, permissions, usingDefaultPassword, landing}`. It drives the nav, a `<Can>` component and route guards.
-- CI runs an **authorization matrix test** (role × endpoint × in-scope/out-of-scope).
+- Every endpoint is declared in one route registry (`backend/src/routing/registry.ts`) with its access: `public`, `authenticated`, or a permission; the guards are applied from that declaration, before validation.
+- CI runs an **authorization matrix test** (role × endpoint × in-scope/out-of-scope) generated from the registry; a route without a matrix case, or served outside the registry, fails it.
+- Role assignments (plan 4.1): superadmin has everything; `voters.import`, `settings.manage` and `audit.view` are superadmin-only; `users.manage`, `recintos.assignCoordinator` and `leaders.promoteManual` add the general coordinator; `people.validate`, `people.export`, `users.resetPassword`, `dashboards.general` and `reports.view` add the recinto coordinator; `leaders.nominate` adds the team leader; every role has `voters.lookup` and `people.create/update/delete`. Landing pages: coordinators `/panel/general`, leaders and aspirants `/panel`.
 
 ## 9. API (REST, `/api`, JSON, zod-validated)
 

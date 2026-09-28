@@ -8,11 +8,9 @@ import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
 import { globalRateLimit } from './middleware/rateLimit';
 import { requestLogger } from './middleware/requestLogger';
-import { pingMongo } from './db/mongo';
-import { createAuthRouter } from './modules/auth/routes';
 import type { TurnstileVerifier } from './modules/auth/turnstile';
-import { createHealthRouter } from './modules/health/routes';
-import { createMeRouter } from './modules/me/routes';
+import { API_PREFIX, buildApiRouter } from './routing/apiRoute';
+import { apiRoutes } from './routing/registry';
 
 export type AppConfig = Pick<
   Env,
@@ -43,16 +41,8 @@ export function createApp(
   app.use(cookieParser());
   app.use(express.json({ limit: '100kb' }));
 
-  // Every route lives under /api: the frontend forwards /api/* here (same-origin rewrite).
-  app.use('/api', createHealthRouter({ mongo: pingMongo, s3: dependencies.pingS3 }));
-  app.use(
-    '/api',
-    createAuthRouter({
-      verifyTurnstile: dependencies.verifyTurnstile,
-      loginRateLimitMax: config.LOGIN_RATE_LIMIT_MAX,
-    }),
-  );
-  app.use('/api', createMeRouter());
+  // Every route is declared in the registry, with its access (public, authenticated, or a permission).
+  app.use(API_PREFIX, buildApiRouter(apiRoutes(config, dependencies)));
 
   app.use(notFound);
   app.use(errorHandler(logger));
