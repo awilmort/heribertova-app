@@ -1,4 +1,4 @@
-import request from 'supertest';
+import { request } from '../../../test/http';
 import { apiErrorBodySchema, meResponseSchema, ROLE_PERMISSIONS, ROLES } from '@heribertova/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {

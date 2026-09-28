@@ -1,4 +1,4 @@
-import request from 'supertest';
+import { request } from '../../../test/http';
 import { apiErrorBodySchema, type Role } from '@heribertova/shared';
 import { Types } from 'mongoose';
 import { describe, expect, it } from 'vitest';

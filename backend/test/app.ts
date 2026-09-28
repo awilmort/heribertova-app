@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import request from 'supertest';
+import { request } from './http';
 import { createApp, type AppConfig, type AppDependencies } from '../src/app';
 import { createLogger, type Logger } from '../src/lib/logger';
 import { SESSION_COOKIE, TOTP_CHALLENGE_COOKIE } from '../src/modules/sessions/cookie';

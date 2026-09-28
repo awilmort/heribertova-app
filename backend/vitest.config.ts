@@ -5,6 +5,7 @@ export default defineProject({
     name: 'backend',
     include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
     globalSetup: ['test/globalSetup.ts'],
+    setupFiles: ['test/setup.ts'],
     // The first run downloads the MongoDB binary used by mongodb-memory-server.
     hookTimeout: 120_000,
   },

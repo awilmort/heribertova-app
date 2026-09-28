@@ -1,5 +1,5 @@
 import { Writable } from 'node:stream';
-import request from 'supertest';
+import { request } from '../../../test/http';
 import { apiErrorBodySchema } from '@heribertova/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
