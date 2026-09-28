@@ -1,0 +1,12 @@
+- Follow the DRY principle.
+- Follow the SOLID principle.
+- Follow YAGNI principle.
+- Well-tested code is non-negotiable. Prefer too many tests over too few.
+- I want code that is "engineered enough":
+  - not fragile
+  - not hacky
+  - not prematurely abstracted
+  - not over-engineered
+- Thoughtfulness is more important than speed.
+- Prefer explicit code over clever code.
+- No dead code. If a class only exists for tests and has no production consumer, it should be deleted or integrated.

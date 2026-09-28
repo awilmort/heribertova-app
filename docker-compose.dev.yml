@@ -1,0 +1,64 @@
+# Local development services. Production uses MongoDB Atlas and AWS S3 (see HERIBERTO_ARCHITECTURE.md Appendix A).
+# Start with `pnpm dev:up`, stop with `pnpm dev:down`. Credentials here are local-only throwaway values.
+services:
+  mongo:
+    image: mongo:8
+    # Single-node replica set: required for multi-document transactions (promotion engine).
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Initiates the replica set on first start; reports healthy once it is PRIMARY.
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 5s
+
+  # S3-compatible emulator. The official minio/minio images are no longer published, so this is
+  # pgsty's community build of MinIO. The API only speaks S3 (S3_ENDPOINT + path-style addressing).
+  s3:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: heribertova
+      MINIO_ROOT_PASSWORD: heribertova-local-secret
+      # Lets the browser PUT the voter file with a presigned URL (plan 9.1). This MinIO build does not
+      # implement per-bucket CORS, so the rule is server-wide here; prod scopes it to the imports
+      # bucket (HERIBERTO_ARCHITECTURE.md A.2 step 5).
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:3000
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # web console (http://localhost:9001)
+    volumes:
+      - s3-data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  # One-shot: creates the local buckets, then exits. Idempotent.
+  s3-init:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
+    depends_on:
+      s3:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        mc alias set local http://s3:9000 heribertova heribertova-local-secret
+        mc mb --ignore-existing local/media local/backups local/imports
+
+volumes:
+  mongo-data:
+  s3-data:

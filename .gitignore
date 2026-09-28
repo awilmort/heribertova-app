@@ -1,0 +1,34 @@
+# Dependencies & build output
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Test artifacts
+playwright-report/
+test-results/
+blob-report/
+
+# Environment & secrets — never commit real values
+.env
+.env.*
+!.env.example
+*.pem
+*accessKeys*.csv
+*credentials*.csv
+
+# Real voter data and database dumps (personal data) — never commit
+padron_*.json
+padron_*.csv
+*.dump
+*.ndjson.gz
+dump/
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/

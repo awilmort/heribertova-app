@@ -1,0 +1,101 @@
+import { describe, expect, it } from 'vitest';
+import { loadEnv } from './env';
+
+const MONGODB_URI = 'mongodb://localhost:27017/heribertova';
+
+/** The variables without a default: the minimum a valid environment must define. */
+const required = {
+  MONGODB_URI,
+  AWS_ACCESS_KEY_ID: 'test-access-key',
+  AWS_SECRET_ACCESS_KEY: 'test-secret-key',
+  S3_MEDIA_BUCKET: 'media',
+  S3_IMPORTS_BUCKET: 'imports',
+};
+
+describe('loadEnv', () => {
+  it('applies defaults when only the required variables are set', () => {
+    expect(loadEnv(required)).toEqual({
+      ...required,
+      NODE_ENV: 'development',
+      PORT: 4000,
+      LOG_LEVEL: 'info',
+      TRUST_PROXY: 0,
+      RATE_LIMIT_MAX: 300,
+      RATE_LIMIT_WINDOW_MS: 900_000,
+      AWS_REGION: 'us-east-1',
+      S3_FORCE_PATH_STYLE: false,
+    });
+  });
+
+  it('coerces numeric variables from strings', () => {
+    const env = loadEnv({ ...required, PORT: '8080', TRUST_PROXY: '1', RATE_LIMIT_MAX: '10' });
+    expect(env.PORT).toBe(8080);
+    expect(env.TRUST_PROXY).toBe(1);
+    expect(env.RATE_LIMIT_MAX).toBe(10);
+  });
+
+  it('accepts mongodb+srv URIs (Atlas)', () => {
+    const uri = 'mongodb+srv://user:secret@cluster.example.mongodb.net/heribertova';
+    expect(loadEnv({ ...required, MONGODB_URI: uri }).MONGODB_URI).toBe(uri);
+  });
+
+  it('fails when MONGODB_URI is missing', () => {
+    expect(() => loadEnv({ ...required, MONGODB_URI: undefined })).toThrow(/MONGODB_URI/);
+  });
+
+  it('names every invalid variable without echoing its value', () => {
+    const run = () => loadEnv({ ...required, MONGODB_URI: 'postgres://secret-value', PORT: 'abc' });
+    expect(run).toThrow(/MONGODB_URI/);
+    expect(run).toThrow(/PORT/);
+    expect(run).not.toThrow(/secret-value/);
+  });
+
+  describe('object storage', () => {
+    it('reads the local emulator settings', () => {
+      const env = loadEnv({
+        ...required,
+        AWS_REGION: 'us-east-1',
+        S3_ENDPOINT: 'http://localhost:9000',
+        S3_FORCE_PATH_STYLE: 'true',
+      });
+      expect(env.S3_ENDPOINT).toBe('http://localhost:9000');
+      expect(env.S3_FORCE_PATH_STYLE).toBe(true);
+    });
+
+    it('leaves S3_ENDPOINT unset for AWS', () => {
+      expect(loadEnv(required).S3_ENDPOINT).toBeUndefined();
+    });
+
+    it('parses S3_FORCE_PATH_STYLE as a boolean string, so "false" is false', () => {
+      expect(loadEnv({ ...required, S3_FORCE_PATH_STYLE: 'false' }).S3_FORCE_PATH_STYLE).toBe(
+        false,
+      );
+      expect(() => loadEnv({ ...required, S3_FORCE_PATH_STYLE: 'maybe' })).toThrow(
+        /S3_FORCE_PATH_STYLE/,
+      );
+    });
+
+    it('rejects an S3_ENDPOINT that is not an http(s) URL', () => {
+      expect(() => loadEnv({ ...required, S3_ENDPOINT: 'localhost:9000' })).toThrow(/S3_ENDPOINT/);
+      expect(() => loadEnv({ ...required, S3_ENDPOINT: 'ftp://localhost:9000' })).toThrow(
+        /S3_ENDPOINT/,
+      );
+    });
+
+    it.each([
+      'AWS_ACCESS_KEY_ID',
+      'AWS_SECRET_ACCESS_KEY',
+      'S3_MEDIA_BUCKET',
+      'S3_IMPORTS_BUCKET',
+    ] as const)('fails when %s is missing', (name) => {
+      expect(() => loadEnv({ ...required, [name]: undefined })).toThrow(new RegExp(name));
+    });
+
+    it('never echoes the secret access key when the configuration is invalid', () => {
+      const run = () =>
+        loadEnv({ ...required, AWS_SECRET_ACCESS_KEY: 'super-secret-key', PORT: 'abc' });
+      expect(run).toThrow(/PORT/);
+      expect(run).not.toThrow(/super-secret-key/);
+    });
+  });
+});

@@ -1,0 +1,37 @@
+{
+  "name": "heribertova",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "prepare": "simple-git-hooks",
+    "dev": "pnpm --parallel --filter @heribertova/backend --filter @heribertova/frontend dev",
+    "dev:up": "docker compose -f docker-compose.dev.yml up -d --wait mongo s3 && docker compose -f docker-compose.dev.yml run --rm s3-init",
+    "dev:down": "docker compose -f docker-compose.dev.yml down",
+    "build": "pnpm -r build",
+    "lint": "eslint scripts && pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm --filter @heribertova/frontend test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "globals": "catalog:",
+    "prettier": "catalog:",
+    "simple-git-hooks": "^2.14.0",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "node scripts/pre-commit.mjs"
+  }
+}

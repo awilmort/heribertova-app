@@ -1,0 +1,25 @@
+packages:
+  - shared
+  - backend
+  - frontend
+
+# Dependencies allowed to run install scripts (pnpm blocks all others).
+allowBuilds:
+  esbuild: true
+  mongodb-memory-server: true
+  # Not needed: the root "prepare" script installs the git hooks explicitly.
+  simple-git-hooks: false
+  unrs-resolver: true
+
+# Single source of truth for versions shared across packages.
+catalog:
+  '@eslint/js': ^9.39.5
+  '@types/node': ^22.20.4
+  eslint: ^9.39.5 # eslint-plugin-react (via eslint-config-next) supports ESLint <= 9
+  eslint-config-prettier: ^10.1.8
+  globals: ^17.12.0
+  prettier: ^3.9.9
+  typescript: ~6.0.3 # typescript-eslint supports TypeScript < 6.1
+  typescript-eslint: ~8.70.1
+  vitest: ^5.0.2
+  zod: ^4.6.5

@@ -1,0 +1,75 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/*
+ * Brand tokens — source of truth: brand/BRAND.md (contrast ratios checked for WCAG AA).
+ * Names follow shadcn/ui conventions so generated components pick them up.
+ */
+:root {
+  --radius: 0.75rem;
+
+  --background: #f5efe6; /* soft beige */
+  --foreground: #3b3024; /* ink: 11.2:1 on background */
+  --card: #fbf8f3;
+  --card-foreground: #3b3024;
+  --popover: #fbf8f3;
+  --popover-foreground: #3b3024;
+
+  --primary: #8b6b4a; /* soft brown: white text on it 4.9:1 */
+  --primary-foreground: #ffffff;
+  --secondary: #eadfcf;
+  --secondary-foreground: #3b3024;
+  --muted: #eadfcf;
+  --muted-foreground: #5e4630; /* deep brown: 7.7:1 on background, 6.7:1 on muted */
+  --accent: #eadfcf;
+  --accent-foreground: #3b3024;
+  --destructive: #b4493b; /* white text 5.3:1 */
+
+  --border: #eadfcf; /* decorative separators */
+  --input: #a0805f; /* form control outlines: 3.2:1 (non-text UI minimum is 3:1) */
+  --ring: #8b6b4a;
+
+  --gold: #e4c99f;
+  --success: #4f7a52;
+  --warning: #8f5e14;
+}
+
+@theme inline {
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-gold: var(--gold);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@heribertova/shared",
+  "private": true,
+  "type": "module",
+  "description": "Contracts shared by backend and frontend (zod schemas, types). Consumed as TypeScript source.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
