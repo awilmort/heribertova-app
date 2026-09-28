@@ -10,6 +10,8 @@ const required = {
   AWS_SECRET_ACCESS_KEY: 'test-secret-key',
   S3_MEDIA_BUCKET: 'media',
   S3_IMPORTS_BUCKET: 'imports',
+  APP_ORIGIN: 'http://localhost:3000',
+  TURNSTILE_SECRET_KEY: 'test-turnstile-secret',
 };
 
 describe('loadEnv', () => {
@@ -22,6 +24,7 @@ describe('loadEnv', () => {
       TRUST_PROXY: 0,
       RATE_LIMIT_MAX: 300,
       RATE_LIMIT_WINDOW_MS: 900_000,
+      LOGIN_RATE_LIMIT_MAX: 10,
       AWS_REGION: 'us-east-1',
       S3_FORCE_PATH_STYLE: false,
     });
@@ -96,6 +99,33 @@ describe('loadEnv', () => {
         loadEnv({ ...required, AWS_SECRET_ACCESS_KEY: 'super-secret-key', PORT: 'abc' });
       expect(run).toThrow(/PORT/);
       expect(run).not.toThrow(/super-secret-key/);
+    });
+  });
+
+  describe('authentication', () => {
+    it.each(['APP_ORIGIN', 'TURNSTILE_SECRET_KEY'] as const)('fails when %s is missing', (name) => {
+      expect(() => loadEnv({ ...required, [name]: undefined })).toThrow(new RegExp(name));
+    });
+
+    it('reduces APP_ORIGIN to its origin, so a trailing slash cannot break the Origin check', () => {
+      expect(loadEnv({ ...required, APP_ORIGIN: 'https://heribertova.do/' }).APP_ORIGIN).toBe(
+        'https://heribertova.do',
+      );
+    });
+
+    it('rejects an APP_ORIGIN that is not an http(s) URL', () => {
+      expect(() => loadEnv({ ...required, APP_ORIGIN: 'heribertova.do' })).toThrow(/APP_ORIGIN/);
+    });
+
+    it('coerces LOGIN_RATE_LIMIT_MAX', () => {
+      expect(loadEnv({ ...required, LOGIN_RATE_LIMIT_MAX: '3' }).LOGIN_RATE_LIMIT_MAX).toBe(3);
+    });
+
+    it('never echoes the Turnstile secret when the configuration is invalid', () => {
+      const run = () =>
+        loadEnv({ ...required, TURNSTILE_SECRET_KEY: 'turnstile-secret', PORT: 'x' });
+      expect(run).toThrow(/PORT/);
+      expect(run).not.toThrow(/turnstile-secret/);
     });
   });
 });

@@ -444,10 +444,12 @@ The layout is designed for phones first (360 px), with large tap targets and pla
    - `MONGODB_URI`
    - AWS vars (A.2)
    - `TURNSTILE_SECRET_KEY`
-   - `SESSION_PEPPER` (32 random bytes)
    - `BACKUP_HMAC_SECRET`
    - `TOTP_ENC_KEY`
-   - `APP_ORIGIN=https://heribertova.do`
+   - `APP_ORIGIN=https://heribertova.do` (the only `Origin` the CSRF guard accepts)
+   - optionally `LOGIN_RATE_LIMIT_MAX` (default 10 failed logins per IP + cédula per 15 min)
+
+   No session pepper: session tokens are 256 random bits, so their plain SHA-256 is already unguessable (plan 3.1).
 6. Optional custom domain `api.heribertova.do` (CNAME to the `onrender.com` host). The browser does not need it, because traffic goes through Vercel rewrites.
 7. Create the superadmin once from the Render **Shell**: `node dist/scripts/create-superadmin.js`. It prompts for the cédula, prints the TOTP QR/secret and forces a strong password. On the Free plan the Shell is unavailable, so run the same script locally against prod `MONGODB_URI` once.
 

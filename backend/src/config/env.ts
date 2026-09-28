@@ -15,6 +15,16 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(15 * 60 * 1000),
+  /** Login attempts allowed per client IP + cédula in a 15-minute window (on top of the account lockout). */
+  LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+
+  /**
+   * The web app's origin (scheme://host[:port]), the only `Origin` accepted on unsafe requests
+   * (CSRF guard). http://localhost:3000 locally, https://heribertova.do in production.
+   */
+  APP_ORIGIN: z.url({ protocol: /^https?$/ }).transform((url) => new URL(url).origin),
+  /** Cloudflare Turnstile secret for the login bot check (the always-pass test secret locally). */
+  TURNSTILE_SECRET_KEY: z.string().min(1),
 
   // Object storage: AWS S3 in production, the S3-compatible emulator locally (docker-compose.dev.yml).
   AWS_REGION: z.string().min(1).default('us-east-1'),

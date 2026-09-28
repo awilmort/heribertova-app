@@ -6,6 +6,11 @@ export const ERROR_CODES = [
   'INVALID_JSON',
   'PAYLOAD_TOO_LARGE',
   'NOT_FOUND',
+  /** Login failed. Deliberately one code for every reason (wrong password, locked, bot check…). */
+  'INVALID_CREDENTIALS',
+  /** No valid session: never logged in, logged out, expired, or the account was deactivated. */
+  'UNAUTHENTICATED',
+  'FORBIDDEN',
   'RATE_LIMITED',
   'INTERNAL_ERROR',
 ] as const;

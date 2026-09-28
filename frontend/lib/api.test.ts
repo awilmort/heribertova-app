@@ -27,6 +27,17 @@ describe('api.health', () => {
     );
   });
 
+  it('sends X-Requested-With, which the API requires on state-changing requests', async () => {
+    const fetchMock = mockFetch(200, { status: 'ok', mongo: 'up', s3: 'up' });
+    await api.health();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/health',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'X-Requested-With': 'XMLHttpRequest' }) as unknown,
+      }),
+    );
+  });
+
   it('accepts the 503 degraded response as data', async () => {
     mockFetch(503, { status: 'degraded', mongo: 'up', s3: 'down' });
     await expect(api.health()).resolves.toEqual({ status: 'degraded', mongo: 'up', s3: 'down' });

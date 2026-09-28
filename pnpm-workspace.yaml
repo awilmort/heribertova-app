@@ -5,6 +5,7 @@ packages:
 
 # Dependencies allowed to run install scripts (pnpm blocks all others).
 allowBuilds:
+  argon2: true # prebuilt native binary; node-gyp-build only compiles when no prebuild matches
   esbuild: true
   mongodb-memory-server: true
   # Not needed: the root "prepare" script installs the git hooks explicitly.
