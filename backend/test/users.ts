@@ -52,23 +52,30 @@ function testPasswordHash(password: string): Promise<string> {
   return hash;
 }
 
-/** A login account plus the person behind it. The password is hashed like a real one. */
-export async function createTestUser({
-  password = DEFAULT_TEST_PASSWORD,
-  role = 'general_coordinator',
-  ...overrides
-}: TestUserOptions = {}): Promise<UserDocument> {
-  const cedula = overrides.username ?? uniqueCedula();
-  // The id is chosen up front so the account can be the one that registered its own person.
-  const userId = overrides._id ?? new Types.ObjectId();
-  const person = await createTestPerson({ cedula, registeredBy: userId });
+/** A login account for an existing person. The password is hashed like a real one. */
+export async function createTestLogin(
+  person: Pick<Person, '_id' | 'cedula'>,
+  {
+    password = DEFAULT_TEST_PASSWORD,
+    role = 'general_coordinator',
+    ...overrides
+  }: TestUserOptions = {},
+): Promise<UserDocument> {
   return UserModel.create({
-    _id: userId,
     personId: person._id,
-    username: cedula,
+    username: person.cedula,
     passwordHash: await testPasswordHash(password),
     role,
     usingDefaultPassword: true,
     ...overrides,
   });
+}
+
+/** A login account plus the person behind it. */
+export async function createTestUser(options: TestUserOptions = {}): Promise<UserDocument> {
+  const cedula = options.username ?? uniqueCedula();
+  // The id is chosen up front so the account can be the one that registered its own person.
+  const userId = options._id ?? new Types.ObjectId();
+  const person = await createTestPerson({ cedula, registeredBy: userId });
+  return createTestLogin(person, { ...options, _id: userId });
 }

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Role } from '@heribertova/shared';
+import type { ClientSession, Types } from 'mongoose';
 import { UserModel, type UserDocument } from '../users/model';
 import { SessionModel } from './model';
 
@@ -101,4 +102,18 @@ export async function resolveSession(token: string): Promise<UserDocument | null
 /** Ends the session behind `token`; a no-op when there is none. */
 export async function deleteSession(token: string): Promise<void> {
   await SessionModel.deleteOne({ tokenHash: hashSessionToken(token) });
+}
+
+/**
+ * Ends every session of a user, except the one behind `keepToken` when given (the request's own,
+ * after a password change). Runs in the transaction `session` of the change that requires it.
+ */
+export async function revokeUserSessions(
+  userId: Types.ObjectId,
+  { keepToken, session }: { keepToken?: string; session: ClientSession },
+): Promise<void> {
+  await SessionModel.deleteMany(
+    keepToken ? { userId, tokenHash: { $ne: hashSessionToken(keepToken) } } : { userId },
+    { session },
+  );
 }

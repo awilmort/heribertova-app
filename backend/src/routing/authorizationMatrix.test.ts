@@ -16,8 +16,9 @@ import {
   testDependencies,
 } from '../../test/app';
 import { useTestDatabase } from '../../test/database';
-import { createTestPerson, createTestUser } from '../../test/users';
+import { createTestLogin, createTestPerson, createTestUser } from '../../test/users';
 import type { Person } from '../modules/people/model';
+import type { User } from '../modules/users/model';
 import { createSession } from '../modules/sessions/service';
 import { routeId, type ApiRoute, type RouteAccess } from './apiRoute';
 import { apiRoutes } from './registry';
@@ -44,7 +45,16 @@ interface MatrixCase {
    * a 400 for a missing body is fine; on a `'person'` route the request must be valid enough to
    * reach the handler's scope check.
    */
-  send: (call: Caller, target: Person) => request.Test;
+  send: (call: Caller, target: MatrixTarget) => request.Test;
+}
+
+/**
+ * The person a route may act on, with a login of their own: an aspirant, whom every role allowed to
+ * act on accounts outranks, so only permission and scope decide the outcome.
+ */
+interface MatrixTarget {
+  person: Person;
+  user: User;
 }
 
 const CASES: Record<string, MatrixCase> = {
@@ -52,6 +62,11 @@ const CASES: Record<string, MatrixCase> = {
   'POST /api/auth/login': { scope: 'none', send: (call) => call.post('/api/auth/login').send({}) },
   'POST /api/auth/logout': { scope: 'none', send: (call) => call.post('/api/auth/logout') },
   'GET /api/me': { scope: 'none', send: (call) => call.get('/api/me') },
+  'PUT /api/me/password': { scope: 'none', send: (call) => call.put('/api/me/password').send({}) },
+  'POST /api/users/:id/reset-password': {
+    scope: 'person',
+    send: (call, target) => call.post(`/api/users/${target.user._id.toHexString()}/reset-password`),
+  },
 };
 
 /** Routes anyone may call without a session. Adding one here is a deliberate, reviewed decision. */
@@ -116,8 +131,8 @@ function callerFor(token: string | null): Caller {
  */
 async function world(
   role: Role | null,
-): Promise<{ call: Caller; targets: Record<Target, Person> }> {
-  const outOfScope = await createTestPerson({
+): Promise<{ call: Caller; targets: Record<Target, MatrixTarget> }> {
+  const outOfScope = await targetPerson({
     registeredBy: new Types.ObjectId(),
     voterSnapshot: snapshotIn(OTHER_RECINTO),
   });
@@ -131,7 +146,7 @@ async function world(
     role,
     recintoScopes: role === 'recinto_coordinator' ? [IN_RECINTO] : [],
   });
-  const inScope = await createTestPerson({
+  const inScope = await targetPerson({
     registeredBy: user._id,
     voterSnapshot: snapshotIn(IN_RECINTO),
     leaderId: user.personId,
@@ -139,6 +154,12 @@ async function world(
   });
   const { token } = await createSession(user, { ip: null, userAgent: null });
   return { call: callerFor(token), targets: { 'in scope': inScope, 'out of scope': outOfScope } };
+}
+
+async function targetPerson(fields: Parameters<typeof createTestPerson>[0]): Promise<MatrixTarget> {
+  const person = await createTestPerson({ ...fields, level: 'aspiring_leader' });
+  const user = await createTestLogin(person, { role: 'aspiring_leader' });
+  return { person: person.toObject(), user: user.toObject() };
 }
 
 /** What the API answered, in the matrix's terms. A server error is never an acceptable outcome. */

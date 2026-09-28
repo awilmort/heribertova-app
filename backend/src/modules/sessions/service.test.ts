@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTestDatabase } from '../../../test/database';
 import { createTestUser } from '../../../test/users';
@@ -8,6 +9,7 @@ import {
   deleteSession,
   hashSessionToken,
   resolveSession,
+  revokeUserSessions,
   SESSION_TOUCH_INTERVAL_MS,
   sessionExpiry,
   sessionLifetime,
@@ -154,15 +156,19 @@ describe('session store', () => {
     await expect(resolveSession(token)).resolves.toBeNull();
   });
 
-  it('expires 30 days after login even when used every day', async () => {
+  it('expires 30 days after login even when used within every idle window', async () => {
     const user = await createTestUser();
     const { token } = await createSession(user, client);
 
-    for (let day = 1; day < 30; day++) {
-      advance(DAY);
+    // Each use comes before the 7-day idle deadline, so only the absolute deadline can end it.
+    // (A handful of uses proves it: every use is a session write on the shared test database.)
+    for (let use = 1; use <= 4; use++) {
+      advance(6 * DAY);
       await expect(resolveSession(token)).resolves.not.toBeNull();
     }
-    advance(DAY);
+    advance(6 * DAY - 1);
+    await expect(resolveSession(token)).resolves.not.toBeNull();
+    advance(1);
     await expect(resolveSession(token)).resolves.toBeNull();
   });
 
@@ -206,9 +212,51 @@ describe('session store', () => {
     await expect(deleteSession(first.token)).resolves.toBeUndefined();
   });
 
-  it('lets MongoDB delete sessions once they expire (TTL index on expiresAt)', async () => {
+  describe('revokeUserSessions', () => {
+    it('ends every session of the user, and only theirs', async () => {
+      const user = await createTestUser();
+      const other = await createTestUser();
+      const sessions = [await createSession(user, client), await createSession(user, client)];
+      const othersSession = await createSession(other, client);
+
+      await mongoose.connection.transaction((session) => revokeUserSessions(user._id, { session }));
+
+      for (const { token } of sessions) await expect(resolveSession(token)).resolves.toBeNull();
+      await expect(resolveSession(othersSession.token)).resolves.not.toBeNull();
+    });
+
+    it('keeps the session behind `keepToken`', async () => {
+      const user = await createTestUser();
+      const kept = await createSession(user, client);
+      const ended = await createSession(user, client);
+
+      await mongoose.connection.transaction((session) =>
+        revokeUserSessions(user._id, { keepToken: kept.token, session }),
+      );
+
+      await expect(resolveSession(kept.token)).resolves.not.toBeNull();
+      await expect(resolveSession(ended.token)).resolves.toBeNull();
+    });
+
+    it('is undone when the transaction aborts', async () => {
+      const user = await createTestUser();
+      const { token } = await createSession(user, client);
+
+      await expect(
+        mongoose.connection.transaction(async (session) => {
+          await revokeUserSessions(user._id, { session });
+          throw new Error('the change failed');
+        }),
+      ).rejects.toThrow('the change failed');
+
+      await expect(resolveSession(token)).resolves.not.toBeNull();
+    });
+  });
+
+  it('indexes sessions by token (unique), by user, and expires them (TTL on expiresAt)', async () => {
     const indexes = await SessionModel.collection.indexes();
     expect(indexes.find((index) => index.key.expiresAt === 1)?.expireAfterSeconds).toBe(0);
     expect(indexes.find((index) => index.key.tokenHash === 1)?.unique).toBe(true);
+    expect(indexes.some((index) => index.key.userId === 1)).toBe(true);
   });
 });

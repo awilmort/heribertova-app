@@ -1,0 +1,287 @@
+import request from 'supertest';
+import { apiErrorBodySchema, type Role } from '@heribertova/shared';
+import { Types } from 'mongoose';
+import { describe, expect, it } from 'vitest';
+import { buildTestApp, login, sameOriginHeaders, sessionCookie } from '../../../test/app';
+import { useTestDatabase } from '../../../test/database';
+import { createTestLogin, createTestPerson, createTestUser } from '../../../test/users';
+import { AuditLogModel } from '../audit/model';
+import type { Person } from '../people/model';
+import { SessionModel } from '../sessions/model';
+import { createSession, resolveSession } from '../sessions/service';
+import { UserModel, type UserDocument } from './model';
+
+useTestDatabase();
+
+const app = buildTestApp();
+
+const RECINTO = 'liceo-juan-pablo-duarte--centro-ciudad';
+const OTHER_RECINTO = 'escuela-primaria-rural--juanillo';
+/** The password the target chose, and then forgot. */
+const FORGOTTEN_PASSWORD = 'clave-olvidada';
+const BIRTH_DATE = '1979-11-02';
+const BIRTH_DATE_PASSWORD = '02111979';
+
+function snapshot(recintoKey: string): Person['voterSnapshot'] {
+  return {
+    fullName: 'MARÍA RODRÍGUEZ',
+    recintoKey,
+    recintoName: recintoKey.toUpperCase(),
+    colegioId: 4675,
+    sector: 'CENTRO',
+    birthDate: BIRTH_DATE,
+  };
+}
+
+/** A user who logs in, and a session of theirs to call the API with. */
+async function caller(role: Role, recintoScopes: string[] = []) {
+  const user = await createTestUser({ role, recintoScopes });
+  const { token } = await createSession(user, { ip: null, userAgent: null });
+  return { user, token };
+}
+
+/**
+ * The account whose password is reset: born on BIRTH_DATE, voting in `recintoKey`, on their own
+ * password (FORGOTTEN_PASSWORD), under `leader` when given.
+ */
+async function target(
+  role: Role,
+  { recintoKey = OTHER_RECINTO, leader }: { recintoKey?: string; leader?: UserDocument } = {},
+): Promise<UserDocument> {
+  const person = await createTestPerson({
+    registeredBy: new Types.ObjectId(),
+    voterSnapshot: snapshot(recintoKey),
+    leaderId: leader?.personId ?? null,
+    ancestors: leader ? [leader.personId] : [],
+  });
+  return createTestLogin(person, {
+    role,
+    password: FORGOTTEN_PASSWORD,
+    usingDefaultPassword: false,
+  });
+}
+
+function resetPassword(token: string | null, userId: string) {
+  const req = request(app).post(`/api/users/${userId}/reset-password`).set(sameOriginHeaders);
+  return token ? req.set('Cookie', sessionCookie(token)) : req;
+}
+
+function expectError(res: request.Response, status: number, code: string, message?: string) {
+  expect(res.status).toBe(status);
+  const { error } = apiErrorBodySchema.parse(res.body);
+  expect(error.code).toBe(code);
+  if (message) expect(error.message).toBe(message);
+}
+
+/** The target's password, lock and sessions are exactly as before the refused request. */
+async function expectUnchanged(user: UserDocument, sessionToken: string) {
+  const stored = await UserModel.findById(user._id).lean();
+  expect(stored?.passwordHash).toBe(user.passwordHash);
+  expect(stored?.usingDefaultPassword).toBe(user.usingDefaultPassword);
+  await expect(resolveSession(sessionToken)).resolves.not.toBeNull();
+  await expect(AuditLogModel.countDocuments()).resolves.toBe(0);
+}
+
+const NOT_IN_SCOPE = 'No tiene acceso a esta persona.';
+const OUTRANKED = 'No puede restablecer la contraseña de este usuario.';
+
+describe('POST /api/users/:id/reset-password', () => {
+  it('puts the password back on the birth date: the old one fails, the birth date works', async () => {
+    const { token } = await caller('general_coordinator');
+    const user = await target('team_leader');
+    expect((await login(app, user.username, FORGOTTEN_PASSWORD)).status).toBe(204);
+
+    const res = await resetPassword(token, user.id);
+
+    expect(res.status).toBe(204);
+    expect((await login(app, user.username, FORGOTTEN_PASSWORD)).status).toBe(401);
+    expect((await login(app, user.username, BIRTH_DATE_PASSWORD)).status).toBe(204);
+    const stored = await UserModel.findById(user._id).lean();
+    expect(stored?.usingDefaultPassword).toBe(true);
+  });
+
+  it('unlocks a locked account', async () => {
+    const { token } = await caller('general_coordinator');
+    const user = await target('aspiring_leader');
+    await UserModel.updateOne(
+      { _id: user._id },
+      { failedAttempts: 10, lockUntil: new Date(Date.now() + 60 * 60 * 1000) },
+    );
+
+    expect((await resetPassword(token, user.id)).status).toBe(204);
+
+    const stored = await UserModel.findById(user._id).lean();
+    expect(stored).toMatchObject({ failedAttempts: 0, lockUntil: null });
+    expect((await login(app, user.username, BIRTH_DATE_PASSWORD)).status).toBe(204);
+  });
+
+  it("ends every session of the user, and none of the caller's", async () => {
+    const { user: coordinator, token } = await caller('general_coordinator');
+    const user = await target('team_leader');
+    const sessions = [
+      await createSession(user, { ip: null, userAgent: null }),
+      await createSession(user, { ip: null, userAgent: null }),
+    ];
+
+    expect((await resetPassword(token, user.id)).status).toBe(204);
+
+    for (const session of sessions) {
+      await expect(resolveSession(session.token)).resolves.toBeNull();
+    }
+    await expect(SessionModel.countDocuments({ userId: user._id })).resolves.toBe(0);
+    await expect(resolveSession(token)).resolves.toMatchObject({ id: coordinator.id });
+  });
+
+  it('records the reset in the audit log, with the cédula masked', async () => {
+    const { user: coordinator, token } = await caller('general_coordinator');
+    const user = await target('team_leader');
+
+    await resetPassword(token, user.id);
+
+    const entries = await AuditLogModel.find().lean();
+    expect(entries).toHaveLength(1);
+    const [entry] = entries;
+    expect(entry).toMatchObject({
+      actorUserId: coordinator._id,
+      action: 'user.password_reset',
+      entity: 'user',
+      entityId: user._id,
+    });
+    expect(entry?.ip).toEqual(expect.any(String));
+    const masked = `${user.username.slice(0, 3)}-*******-${user.username.slice(-1)}`;
+    expect(entry?.summary).toBe(`Restableció a la fecha de nacimiento la contraseña de ${masked}.`);
+    expect(entry?.summary).not.toContain(user.username);
+  });
+
+  describe('scope', () => {
+    it('lets a recinto coordinator reset a leader who votes in one of their recintos', async () => {
+      const { token } = await caller('recinto_coordinator', [RECINTO]);
+      const user = await target('team_leader', { recintoKey: RECINTO });
+      expect((await resetPassword(token, user.id)).status).toBe(204);
+      expect((await login(app, user.username, BIRTH_DATE_PASSWORD)).status).toBe(204);
+    });
+
+    it('lets a recinto coordinator reset a leader of their own team in another recinto', async () => {
+      const { user: coordinator, token } = await caller('recinto_coordinator', [RECINTO]);
+      const user = await target('aspiring_leader', {
+        recintoKey: OTHER_RECINTO,
+        leader: coordinator,
+      });
+      expect((await resetPassword(token, user.id)).status).toBe(204);
+    });
+
+    it('refuses a recinto coordinator a leader out of their scope, changing nothing', async () => {
+      const { token } = await caller('recinto_coordinator', [RECINTO]);
+      const user = await target('team_leader', { recintoKey: OTHER_RECINTO });
+      const session = await createSession(user, { ip: null, userAgent: null });
+
+      expectError(await resetPassword(token, user.id), 403, 'FORBIDDEN', NOT_IN_SCOPE);
+      await expectUnchanged(user, session.token);
+      expect((await login(app, user.username, FORGOTTEN_PASSWORD)).status).toBe(204);
+    });
+
+    it('lets a general coordinator and the superadmin reset leaders anywhere', async () => {
+      for (const role of ['general_coordinator', 'superadmin'] as const) {
+        const { token } = await caller(role);
+        const user = await target('team_leader', { recintoKey: OTHER_RECINTO });
+        expect((await resetPassword(token, user.id)).status).toBe(204);
+      }
+    });
+
+    it.each(['team_leader', 'aspiring_leader'] as const)(
+      'refuses a %s, even for someone on their own team',
+      async (role) => {
+        const { user: leader, token } = await caller(role);
+        const user = await target('aspiring_leader', { recintoKey: RECINTO, leader });
+        const session = await createSession(user, { ip: null, userAgent: null });
+
+        expectError(await resetPassword(token, user.id), 403, 'FORBIDDEN');
+        await expectUnchanged(user, session.token);
+      },
+    );
+  });
+
+  describe('rank', () => {
+    it('never lets a general coordinator reset the superadmin', async () => {
+      const { token } = await caller('general_coordinator');
+      const superadmin = await createTestUser({ role: 'superadmin' });
+      const session = await createSession(superadmin, { ip: null, userAgent: null });
+
+      expectError(await resetPassword(token, superadmin.id), 403, 'FORBIDDEN', OUTRANKED);
+      await expectUnchanged(superadmin, session.token);
+    });
+
+    it('does not let the superadmin reset its own password to a birth date', async () => {
+      const { user: superadmin, token } = await caller('superadmin');
+      expectError(await resetPassword(token, superadmin.id), 403, 'FORBIDDEN', OUTRANKED);
+      await expectUnchanged(superadmin, token);
+    });
+
+    it('refuses a peer: a general coordinator cannot reset another one', async () => {
+      const { token } = await caller('general_coordinator');
+      const user = await target('general_coordinator');
+      const session = await createSession(user, { ip: null, userAgent: null });
+
+      expectError(await resetPassword(token, user.id), 403, 'FORBIDDEN', OUTRANKED);
+      await expectUnchanged(user, session.token);
+    });
+
+    it.each(['general_coordinator', 'recinto_coordinator'] as const)(
+      'refuses a recinto coordinator a %s voting in their recinto (in scope, not outranked)',
+      async (role) => {
+        const { token } = await caller('recinto_coordinator', [RECINTO]);
+        const user = await target(role, { recintoKey: RECINTO });
+        const session = await createSession(user, { ip: null, userAgent: null });
+
+        expectError(await resetPassword(token, user.id), 403, 'FORBIDDEN', OUTRANKED);
+        await expectUnchanged(user, session.token);
+      },
+    );
+
+    it('lets the superadmin reset a general coordinator', async () => {
+      const { token } = await caller('superadmin');
+      const user = await target('general_coordinator');
+      expect((await resetPassword(token, user.id)).status).toBe(204);
+    });
+
+    it('does not let a coordinator reset their own password this way', async () => {
+      const { user, token } = await caller('general_coordinator');
+      expectError(await resetPassword(token, user.id), 403, 'FORBIDDEN', OUTRANKED);
+    });
+  });
+
+  it('answers 404 for an unknown user', async () => {
+    const { token } = await caller('general_coordinator');
+    expectError(
+      await resetPassword(token, new Types.ObjectId().toHexString()),
+      404,
+      'NOT_FOUND',
+      'No encontramos ese usuario.',
+    );
+  });
+
+  it('rejects an id that is not an ObjectId', async () => {
+    const { token } = await caller('general_coordinator');
+    const res = await resetPassword(token, 'not-an-id');
+    expectError(res, 400, 'VALIDATION_ERROR');
+    expect(apiErrorBodySchema.parse(res.body).error.fields).toEqual({
+      'params.id': ['Identificador no válido.'],
+    });
+  });
+
+  it('requires a session', async () => {
+    const user = await target('team_leader');
+    expectError(await resetPassword(null, user.id), 401, 'UNAUTHENTICATED');
+  });
+
+  it('refuses a cross-origin request', async () => {
+    const { token } = await caller('general_coordinator');
+    const user = await target('team_leader');
+    const res = await request(app)
+      .post(`/api/users/${user.id}/reset-password`)
+      .set({ ...sameOriginHeaders, Origin: 'https://evil.example' })
+      .set('Cookie', sessionCookie(token));
+    expectError(res, 403, 'FORBIDDEN');
+    await expect(AuditLogModel.countDocuments()).resolves.toBe(0);
+  });
+});

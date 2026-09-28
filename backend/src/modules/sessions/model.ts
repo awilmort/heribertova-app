@@ -32,6 +32,8 @@ const sessionSchema = new Schema<Session>(
 );
 
 sessionSchema.index({ tokenHash: 1 }, { unique: true });
+// Revoking every session of a user (password change or reset, deactivation, role change).
+sessionSchema.index({ userId: 1 });
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const SessionModel = model<Session>('Session', sessionSchema);

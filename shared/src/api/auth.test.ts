@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loginRequestSchema, meResponseSchema } from './auth';
+import { changePasswordRequestSchema, loginRequestSchema, meResponseSchema } from './auth';
 
 const validLogin = { cedula: '00112345672', password: '15031985', turnstileToken: 'token' };
 
@@ -61,5 +61,45 @@ describe('meResponseSchema', () => {
 
   it('requires the landing page to be an app path', () => {
     expect(meResponseSchema.safeParse({ ...me, landing: 'panel' }).success).toBe(false);
+  });
+});
+
+describe('changePasswordRequestSchema', () => {
+  const valid = { currentPassword: '15031985', newPassword: 'mi-clave-nueva' };
+
+  it('accepts the current password and a new one of at least 8 characters', () => {
+    expect(changePasswordRequestSchema.parse(valid)).toEqual(valid);
+    expect(
+      changePasswordRequestSchema.safeParse({ ...valid, newPassword: '12345678' }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a new password shorter than 8 characters, in Spanish', () => {
+    const result = changePasswordRequestSchema.safeParse({ ...valid, newPassword: '1234567' });
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual([
+      'La contraseña debe tener al menos 8 caracteres.',
+    ]);
+  });
+
+  it('requires the current password', () => {
+    expect(changePasswordRequestSchema.safeParse({ ...valid, currentPassword: '' }).success).toBe(
+      false,
+    );
+    expect(changePasswordRequestSchema.safeParse({ newPassword: 'mi-clave-nueva' }).success).toBe(
+      false,
+    );
+  });
+
+  it('caps both passwords at 256 characters', () => {
+    const long = 'x'.repeat(257);
+    expect(changePasswordRequestSchema.safeParse({ ...valid, newPassword: long }).success).toBe(
+      false,
+    );
+    expect(changePasswordRequestSchema.safeParse({ ...valid, currentPassword: long }).success).toBe(
+      false,
+    );
+    expect(
+      changePasswordRequestSchema.safeParse({ ...valid, newPassword: 'x'.repeat(256) }).success,
+    ).toBe(true);
   });
 });

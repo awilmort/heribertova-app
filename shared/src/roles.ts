@@ -14,3 +14,11 @@ export const ROLES = [
 
 export const roleSchema = z.enum(ROLES);
 export type Role = z.infer<typeof roleSchema>;
+
+/**
+ * True when `role` ranks strictly above `other` in `ROLES`. Acting on another account (e.g. resetting
+ * its password) needs a higher role, so no one can act on a peer, a superior or the superadmin.
+ */
+export function outranks(role: Role, other: Role): boolean {
+  return ROLES.indexOf(role) < ROLES.indexOf(other);
+}
