@@ -27,6 +27,9 @@ padron_*.csv
 *.ndjson.gz
 dump/
 
+# Local scratch output (e.g. synthetic voter files from `voters:fake`)
+tmp/
+
 # OS / editor
 .DS_Store
 .vscode/*

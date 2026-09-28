@@ -36,6 +36,9 @@ Run from the repository root.
 | `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm build` | The CI gates; all must pass before a PR merges |
 | `pnpm format` | Format with Prettier |
 | `pnpm --filter backend s3:check` | Put, get and delete a test object in the media and imports buckets of the configured S3 |
+| `pnpm --filter backend voters:fake --out tmp/voters-20k.json [--voters 20000]` | Write a synthetic Higüey voter file in the real export's shape (`tmp/` is gitignored; 181551 voters = real size) |
+| `pnpm --filter backend voters:import --file <path> --dry-run` | Validate a voter file and print its report (accepted, rejected, check-digit warnings, recintos, colegios, sectors, diff); writes nothing |
+| `pnpm --filter backend voters:import --file <path> --cut <label> [--apply]` | Stage the file (report only), or with `--apply` stage and apply it to `voters`/`recintos`. The same file (SHA-256) is never imported twice |
 
 ## Git
 
