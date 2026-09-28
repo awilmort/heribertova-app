@@ -1,12 +1,19 @@
 import type { MeResponse } from '@heribertova/shared';
-import { Router } from 'express';
-import { currentUser, requireAuth } from '../../middleware/requireAuth';
+import { currentUser } from '../../middleware/requireAuth';
+import type { ApiRoute } from '../../routing/apiRoute';
 import { getMe } from './service';
 
-export function createMeRouter(): Router {
-  const router = Router();
-  router.get('/me', requireAuth, async (req, res) => {
-    res.json((await getMe(currentUser(req))) satisfies MeResponse);
-  });
-  return router;
+export function createMeRoutes(): ApiRoute[] {
+  return [
+    {
+      method: 'get',
+      path: '/me',
+      access: 'authenticated',
+      handlers: [
+        async (req, res) => {
+          res.json((await getMe(currentUser(req))) satisfies MeResponse);
+        },
+      ],
+    },
+  ];
 }

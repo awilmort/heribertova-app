@@ -40,6 +40,18 @@ export interface TestUserOptions extends Partial<Omit<User, 'passwordHash'>> {
 
 export const DEFAULT_TEST_PASSWORD = '15031985';
 
+/** argon2 is slow on purpose: hash each test password once per test file and reuse it. */
+const hashes = new Map<string, Promise<string>>();
+
+function testPasswordHash(password: string): Promise<string> {
+  let hash = hashes.get(password);
+  if (!hash) {
+    hash = hashPassword(password);
+    hashes.set(password, hash);
+  }
+  return hash;
+}
+
 /** A login account plus the person behind it. The password is hashed like a real one. */
 export async function createTestUser({
   password = DEFAULT_TEST_PASSWORD,
@@ -54,7 +66,7 @@ export async function createTestUser({
     _id: userId,
     personId: person._id,
     username: cedula,
-    passwordHash: await hashPassword(password),
+    passwordHash: await testPasswordHash(password),
     role,
     usingDefaultPassword: true,
     ...overrides,

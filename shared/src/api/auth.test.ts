@@ -42,6 +42,8 @@ describe('meResponseSchema', () => {
       sector: 'CENTRO',
     },
     role: 'team_leader',
+    permissions: ['voters.lookup', 'people.create'],
+    landing: '/panel',
     usingDefaultPassword: true,
   };
 
@@ -51,5 +53,13 @@ describe('meResponseSchema', () => {
 
   it('rejects a role that cannot log in', () => {
     expect(meResponseSchema.safeParse({ ...me, role: 'member' }).success).toBe(false);
+  });
+
+  it('rejects an unknown permission', () => {
+    expect(meResponseSchema.safeParse({ ...me, permissions: ['people.read'] }).success).toBe(false);
+  });
+
+  it('requires the landing page to be an app path', () => {
+    expect(meResponseSchema.safeParse({ ...me, landing: 'panel' }).success).toBe(false);
   });
 });

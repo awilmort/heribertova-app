@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { cedulaSchema } from '../cedula';
+import { permissionSchema } from '../permissions';
 import { roleSchema } from '../roles';
 
 /**
@@ -34,6 +35,10 @@ export const meResponseSchema = z.object({
     sector: z.string(),
   }),
   role: roleSchema,
+  /** What the role may do (`ROLE_PERMISSIONS`): drives the navigation and what the UI offers. */
+  permissions: z.array(permissionSchema),
+  /** The web page the role starts on (`/inicio` redirects there). */
+  landing: z.string().startsWith('/'),
   /** True while the password is still the default (birth date): the UI keeps prompting to change it. */
   usingDefaultPassword: z.boolean(),
 });

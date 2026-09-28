@@ -1,11 +1,12 @@
 import request from 'supertest';
-import { apiErrorBodySchema, meResponseSchema } from '@heribertova/shared';
+import { apiErrorBodySchema, meResponseSchema, ROLE_PERMISSIONS, ROLES } from '@heribertova/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildTestApp, loginToken, sessionCookie } from '../../../test/app';
 import { useTestDatabase } from '../../../test/database';
 import { createTestUser, DEFAULT_TEST_PASSWORD } from '../../../test/users';
 import { PersonModel } from '../people/model';
 import { UserModel } from '../users/model';
+import { landingFor } from './landing';
 
 useTestDatabase();
 
@@ -69,8 +70,18 @@ describe('GET /api/me', () => {
         sector: 'CENTRO CIUDAD',
       },
       role: 'recinto_coordinator',
+      permissions: [...ROLE_PERMISSIONS.recinto_coordinator],
+      landing: '/panel/general',
       usingDefaultPassword: true,
     });
+  });
+
+  it.each(ROLES)('returns the permissions and landing page of a %s', async (role) => {
+    const { token } = await loggedIn({ role });
+    const body = meResponseSchema.parse((await me(token)).body);
+    expect(body.role).toBe(role);
+    expect(body.permissions).toEqual(ROLE_PERMISSIONS[role]);
+    expect(body.landing).toBe(landingFor(role));
   });
 
   it('reports whether the default password is still in use', async () => {
