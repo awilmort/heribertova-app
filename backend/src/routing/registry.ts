@@ -3,6 +3,7 @@ import { pingMongo } from '../db/mongo';
 import { createAuthRoutes } from '../modules/auth/routes';
 import { createHealthRoutes } from '../modules/health/routes';
 import { createMeRoutes } from '../modules/me/routes';
+import { createUserRoutes } from '../modules/users/routes';
 import type { ApiRoute } from './apiRoute';
 
 /**
@@ -18,5 +19,6 @@ export function apiRoutes(config: AppConfig, dependencies: AppDependencies): Api
       loginRateLimitMax: config.LOGIN_RATE_LIMIT_MAX,
     }),
     ...createMeRoutes(),
+    ...createUserRoutes(),
   ];
 }

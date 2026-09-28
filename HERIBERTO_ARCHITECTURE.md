@@ -258,8 +258,8 @@ The server enforces scope on every query and every `:id` route. The UI only hide
   5. The admin user list shows who still uses the default.
   6. Login audit.
   7. The **superadmin never uses a birth-date password**: it gets a strong password plus TOTP and is created by CLI.
-- **Change password:** at `/perfil`. Minimum 8 characters, and it cannot equal the birth date.
-- **Forgot password:** there are no SMS/email costs. The user asks their coordinator, who can **"Restablecer a fecha de nacimiento"**. That resets the password to the default, unlocks the account, revokes sessions and is audited. The superadmin can reset anyone.
+- **Change password:** at `/perfil`. Minimum 8 characters (14 for the superadmin), it cannot equal the birth date (DDMMYYYY or YYYYMMDD, with or without separators), and it requires the current password. Other sessions end; the current one stays.
+- **Forgot password:** there are no SMS/email costs. The user asks their coordinator, who can **"Restablecer a fecha de nacimiento"**. That resets the password to the default, unlocks the account, revokes sessions and is audited. The caller must have the user in scope and **outrank** them (plan 3.2), so nobody resets a peer or a superior; the superadmin can reset anyone else. The superadmin's own password is never reset to a birth date.
 - **Sessions:** a random 256-bit token lives in a `__Host-sid` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/`). Only its SHA-256 is stored in `sessions`. Timeouts: 7 days idle and 30 days absolute (field users on shared phones stay usable), 12 h for superadmin. The token rotates on login and on role change. There are no JWTs in `localStorage`.
 - **CSRF:** SameSite=Lax, plus a required `Origin` check on unsafe methods, plus the `X-Requested-With` header.
 - **Deactivated users** are rejected on their next request, because the session lookup checks `users.isActive`.
