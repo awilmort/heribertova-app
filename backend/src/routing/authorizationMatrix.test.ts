@@ -60,6 +60,10 @@ interface MatrixTarget {
 const CASES: Record<string, MatrixCase> = {
   'GET /api/health': { scope: 'none', send: (call) => call.get('/api/health') },
   'POST /api/auth/login': { scope: 'none', send: (call) => call.post('/api/auth/login').send({}) },
+  'POST /api/auth/totp/verify': {
+    scope: 'none',
+    send: (call) => call.post('/api/auth/totp/verify').send({}),
+  },
   'POST /api/auth/logout': { scope: 'none', send: (call) => call.post('/api/auth/logout') },
   'GET /api/me': { scope: 'none', send: (call) => call.get('/api/me') },
   'PUT /api/me/password': { scope: 'none', send: (call) => call.put('/api/me/password').send({}) },
@@ -70,7 +74,13 @@ const CASES: Record<string, MatrixCase> = {
 };
 
 /** Routes anyone may call without a session. Adding one here is a deliberate, reviewed decision. */
-const PUBLIC_ROUTES = ['GET /api/health', 'POST /api/auth/login', 'POST /api/auth/logout'];
+const PUBLIC_ROUTES = [
+  'GET /api/health',
+  'POST /api/auth/login',
+  // The superadmin has no session yet at the TOTP step; the challenge cookie is what it checks.
+  'POST /api/auth/totp/verify',
+  'POST /api/auth/logout',
+];
 
 /** Roles whose scope is everyone (architecture §6.3); every other role is limited. */
 const SEES_EVERYONE: readonly Role[] = ['superadmin', 'general_coordinator'];

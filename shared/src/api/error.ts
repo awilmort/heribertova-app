@@ -8,6 +8,8 @@ export const ERROR_CODES = [
   'NOT_FOUND',
   /** Login failed. Deliberately one code for every reason (wrong password, locked, bot check…). */
   'INVALID_CREDENTIALS',
+  /** The superadmin's TOTP code is wrong or was already used; the same challenge may be retried. */
+  'INVALID_TOTP_CODE',
   /** No valid session: never logged in, logged out, expired, or the account was deactivated. */
   'UNAUTHENTICATED',
   'FORBIDDEN',

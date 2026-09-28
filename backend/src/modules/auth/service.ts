@@ -1,5 +1,5 @@
-import { randomBytes } from 'node:crypto';
 import { hashPassword, verifyPassword } from '../../lib/password';
+import { newSecretToken } from '../../lib/token';
 import { UserModel, type UserDocument } from '../users/model';
 import { lockoutDurationMs } from './lockout';
 
@@ -16,7 +16,7 @@ let dummyHash: Promise<string> | undefined;
  * keeps every failed login equally slow, so response times do not reveal which cédulas have accounts.
  */
 function hashForTimingOnly(): Promise<string> {
-  dummyHash ??= hashPassword(randomBytes(32).toString('base64url'));
+  dummyHash ??= hashPassword(newSecretToken());
   return dummyHash;
 }
 
@@ -26,7 +26,16 @@ async function refuse(reason: LoginFailureReason, password: string): Promise<Aut
   return { ok: false, reason };
 }
 
-async function registerFailure(user: UserDocument, now: Date): Promise<void> {
+/** True while a lockout refuses the account's logins. */
+export function isLocked(user: UserDocument, now: Date): boolean {
+  return user.lockUntil !== null && user.lockUntil > now;
+}
+
+/**
+ * Counts a failed login step (a wrong password, or a wrong TOTP code) toward the account's
+ * progressive lockout, and locks the account when the count reaches a threshold.
+ */
+export async function registerFailedAttempt(user: UserDocument, now: Date): Promise<void> {
   const updated = await UserModel.findByIdAndUpdate(
     user._id,
     { $inc: { failedAttempts: 1 } },
@@ -41,7 +50,9 @@ async function registerFailure(user: UserDocument, now: Date): Promise<void> {
 /**
  * Checks a cédula + password (the first login step). Inactive and locked accounts are refused
  * without checking the password, and attempts during a lockout do not extend it. Every failure of
- * an existing, active account counts toward the progressive lockout; a success resets it.
+ * an existing, active account counts toward the progressive lockout. A success changes nothing
+ * yet: the login is complete only after `completeLogin` (for the superadmin, after the TOTP step,
+ * so a known password alone never resets the failures a wrong code has counted).
  */
 export async function authenticate(
   username: string,
@@ -52,16 +63,19 @@ export async function authenticate(
 
   if (!user) return refuse('unknown_user', password);
   if (!user.isActive) return refuse('inactive', password);
-  if (user.lockUntil && user.lockUntil > now) return refuse('locked', password);
+  if (isLocked(user, now)) return refuse('locked', password);
 
   if (!(await verifyPassword(user.passwordHash, password))) {
-    await registerFailure(user, now);
+    await registerFailedAttempt(user, now);
     return { ok: false, reason: 'wrong_password' };
   }
-
-  user.failedAttempts = 0;
-  user.lockUntil = null;
-  user.lastLoginAt = now;
-  await user.save();
   return { ok: true, user };
+}
+
+/** Records a completed login: the lockout count starts over and the login time is kept. */
+export async function completeLogin(user: UserDocument): Promise<void> {
+  await UserModel.updateOne(
+    { _id: user._id },
+    { failedAttempts: 0, lockUntil: null, lastLoginAt: new Date() },
+  );
 }

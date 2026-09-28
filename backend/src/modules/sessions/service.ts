@@ -1,6 +1,6 @@
-import { createHash, randomBytes } from 'node:crypto';
 import type { Role } from '@heribertova/shared';
 import type { ClientSession, Types } from 'mongoose';
+import { hashToken, newSecretToken } from '../../lib/token';
 import { UserModel, type UserDocument } from '../users/model';
 import { SessionModel } from './model';
 
@@ -35,11 +35,6 @@ export function sessionExpiry(createdAt: Date, lastSeenAt: Date, role: Role): Da
   return new Date(Math.min(lastSeenAt.getTime() + idleMs, createdAt.getTime() + absoluteMs));
 }
 
-/** The only form ever stored or looked up: a leaked `sessions` collection holds no usable token. */
-export function hashSessionToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
-
 export interface NewSession {
   /** The secret for the cookie (256 random bits, base64url). Never stored or logged. */
   token: string;
@@ -59,10 +54,10 @@ export async function createSession(
   user: UserDocument,
   client: SessionClient,
 ): Promise<NewSession> {
-  const token = randomBytes(32).toString('base64url');
+  const token = newSecretToken();
   const now = new Date();
   await SessionModel.create({
-    tokenHash: hashSessionToken(token),
+    tokenHash: hashToken(token),
     userId: user._id,
     createdAt: now,
     lastSeenAt: now,
@@ -82,7 +77,7 @@ export async function createSession(
  */
 export async function resolveSession(token: string): Promise<UserDocument | null> {
   const now = new Date();
-  const session = await SessionModel.findOne({ tokenHash: hashSessionToken(token) });
+  const session = await SessionModel.findOne({ tokenHash: hashToken(token) });
   if (!session || session.expiresAt <= now) return null;
 
   const user = await UserModel.findById(session.userId);
@@ -101,7 +96,7 @@ export async function resolveSession(token: string): Promise<UserDocument | null
 
 /** Ends the session behind `token`; a no-op when there is none. */
 export async function deleteSession(token: string): Promise<void> {
-  await SessionModel.deleteOne({ tokenHash: hashSessionToken(token) });
+  await SessionModel.deleteOne({ tokenHash: hashToken(token) });
 }
 
 /**
@@ -113,7 +108,7 @@ export async function revokeUserSessions(
   { keepToken, session }: { keepToken?: string; session: ClientSession },
 ): Promise<void> {
   await SessionModel.deleteMany(
-    keepToken ? { userId, tokenHash: { $ne: hashSessionToken(keepToken) } } : { userId },
+    keepToken ? { userId, tokenHash: { $ne: hashToken(keepToken) } } : { userId },
     { session },
   );
 }

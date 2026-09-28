@@ -4,4 +4,5 @@ export * from './api/health';
 export * from './cedula';
 export * from './passwords';
 export * from './permissions';
+export * from './phone';
 export * from './roles';

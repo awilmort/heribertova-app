@@ -2,12 +2,12 @@ import mongoose from 'mongoose';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTestDatabase } from '../../../test/database';
 import { createTestUser } from '../../../test/users';
+import { hashToken } from '../../lib/token';
 import { UserModel } from '../users/model';
 import { SessionModel } from './model';
 import {
   createSession,
   deleteSession,
-  hashSessionToken,
   resolveSession,
   revokeUserSessions,
   SESSION_TOUCH_INTERVAL_MS,
@@ -93,7 +93,7 @@ describe('session store', () => {
     expect(maxAgeMs).toBe(30 * DAY);
     const stored = await SessionModel.findOne().lean();
     expect(stored).toMatchObject({
-      tokenHash: hashSessionToken(token),
+      tokenHash: hashToken(token),
       userId: user._id,
       ip: client.ip,
       ua: client.userAgent,

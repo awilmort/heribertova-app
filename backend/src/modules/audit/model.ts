@@ -4,7 +4,11 @@ import { model, Schema, type Types } from 'mongoose';
  * What an audit entry records. Plan 4.3 owns the audit log (viewer, a route-walking test that every
  * mutating endpoint audits) and adds the actions of the endpoints it covers.
  */
-export const AUDIT_ACTIONS = ['user.password_reset', 'user.password_changed'] as const;
+export const AUDIT_ACTIONS = [
+  'user.password_reset',
+  'user.password_changed',
+  'user.superadmin_created',
+] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 /** The kind of record an audited action touched. */

@@ -1,8 +1,10 @@
 import type { Role } from '@heribertova/shared';
 import { Types } from 'mongoose';
 import { hashPassword } from '../src/lib/password';
+import { encryptSecret } from '../src/lib/secretBox';
 import { PersonModel, type Person } from '../src/modules/people/model';
 import { UserModel, type User, type UserDocument } from '../src/modules/users/model';
+import { TEST_TOTP_KEY, TEST_TOTP_SECRET } from './totp';
 
 let nextCedula = 40_200_000_000;
 
@@ -52,7 +54,10 @@ function testPasswordHash(password: string): Promise<string> {
   return hash;
 }
 
-/** A login account for an existing person. The password is hashed like a real one. */
+/**
+ * A login account for an existing person. The password is hashed like a real one; a superadmin
+ * gets TEST_TOTP_SECRET, encrypted with the test app's key.
+ */
 export async function createTestLogin(
   person: Pick<Person, '_id' | 'cedula'>,
   {
@@ -67,6 +72,7 @@ export async function createTestLogin(
     passwordHash: await testPasswordHash(password),
     role,
     usingDefaultPassword: true,
+    totpSecretEnc: role === 'superadmin' ? encryptSecret(TEST_TOTP_KEY, TEST_TOTP_SECRET) : null,
     ...overrides,
   });
 }

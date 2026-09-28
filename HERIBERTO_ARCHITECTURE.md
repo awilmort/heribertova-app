@@ -195,8 +195,11 @@ users {             // only for roles that log in
   _id, personId (unique), username (= cédula, unique), passwordHash (argon2id)
   role, recintoScopes: string[]   // recintoKeys, for recinto_coordinator
   usingDefaultPassword: bool, isActive, failedAttempts, lockUntil?, lastLoginAt?
-  totpSecretEnc?                  // superadmin only
+  totpSecretEnc?                  // superadmin only (required for it): AES-256-GCM with TOTP_ENC_KEY
+  totpLastUsedStep?               // last accepted TOTP time step: a code is never accepted twice
 }  idx: unique partial {role:1} where role='superadmin'   → guarantees exactly one
+
+totpChallenges { _id, tokenHash (unique), userId (unique), attempts, expiresAt (TTL) }   // plan 3.3: superadmin between password and TOTP; never a session
 
 sessions { _id, tokenHash, userId, createdAt, lastSeenAt, expiresAt (TTL index), ip, ua }
 
@@ -260,6 +263,7 @@ The server enforces scope on every query and every `:id` route. The UI only hide
   7. The **superadmin never uses a birth-date password**: it gets a strong password plus TOTP and is created by CLI.
 - **Change password:** at `/perfil`. Minimum 8 characters (14 for the superadmin), it cannot equal the birth date (DDMMYYYY or YYYYMMDD, with or without separators), and it requires the current password. Other sessions end; the current one stays.
 - **Forgot password:** there are no SMS/email costs. The user asks their coordinator, who can **"Restablecer a fecha de nacimiento"**. That resets the password to the default, unlocks the account, revokes sessions and is audited. The caller must have the user in scope and **outrank** them (plan 3.2), so nobody resets a peer or a superior; the superadmin can reset anyone else. The superadmin's own password is never reset to a birth date.
+- **Superadmin second factor (plan 3.3):** a right password answers `202 {totpRequired: true}` with a 5-minute `__Host-totp` challenge cookie, which opens nothing but `POST /auth/totp/verify` (it lives in its own `totpChallenges` collection, never in `sessions`). A valid RFC 6238 code (SHA-1, 6 digits, 30 s, ±1 step) turns it into a session. Each code is accepted once (replay), a challenge takes at most 5 codes (claimed atomically), wrong codes count toward the same progressive lockout as wrong passwords (a right password alone does not reset it), and failed codes are rate-limited per IP. The superadmin is created only by `create-superadmin` (A.3), from the owner's voter record, and enrolls the authenticator app before the account exists.
 - **Sessions:** a random 256-bit token lives in a `__Host-sid` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/`). Only its SHA-256 is stored in `sessions`. Timeouts: 7 days idle and 30 days absolute (field users on shared phones stay usable), 12 h for superadmin. The token rotates on login and on role change. There are no JWTs in `localStorage`.
 - **CSRF:** SameSite=Lax, plus a required `Origin` check on unsafe methods, plus the `X-Requested-With` header.
 - **Deactivated users** are rejected on their next request, because the session lookup checks `users.isActive`.
@@ -453,7 +457,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 
    No session pepper: session tokens are 256 random bits, so their plain SHA-256 is already unguessable (plan 3.1).
 6. Optional custom domain `api.heribertova.do` (CNAME to the `onrender.com` host). The browser does not need it, because traffic goes through Vercel rewrites.
-7. Create the superadmin once from the Render **Shell**: `node dist/scripts/create-superadmin.js`. It prompts for the cédula, prints the TOTP QR/secret and forces a strong password. On the Free plan the Shell is unavailable, so run the same script locally against prod `MONGODB_URI` once.
+7. Create the superadmin once from the Render **Shell**: `node dist/scripts/create-superadmin.js`. The owner must be in the padrón, so import it first with the CLI (`voters:import --apply`; the import screen itself needs the superadmin). The script prompts for the cédula and phone, forces a strong password (≥ 14 characters, not the birth date), prints the TOTP QR/URI/secret and asks for a code from the app before creating anything. On the Free plan the Shell is unavailable, so run `pnpm --filter backend superadmin:create` locally once with the prod `MONGODB_URI` **and the same `TOTP_ENC_KEY` as Render**.
 
 ### A.4 Vercel (web)
 1. vercel.com → sign in with GitHub → **Add New Project** → import the repo, **Root Directory** `frontend`, framework Next.js.

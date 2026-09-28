@@ -13,8 +13,8 @@ import {
 import { useTestDatabase } from '../../../test/database';
 import { createTestUser, DEFAULT_TEST_PASSWORD, uniqueCedula } from '../../../test/users';
 import { createLogger } from '../../lib/logger';
+import { hashToken } from '../../lib/token';
 import { SessionModel } from '../sessions/model';
-import { hashSessionToken } from '../sessions/service';
 import { UserModel } from '../users/model';
 import type { TurnstileVerifier } from './turnstile';
 
@@ -78,13 +78,6 @@ describe('POST /api/auth/login', () => {
     expect(cookie).not.toContain('Domain');
   });
 
-  it('gives the superadmin a 12-hour cookie', async () => {
-    const user = await createTestUser({ role: 'superadmin' });
-    const res = await login(buildTestApp(), user.username, DEFAULT_TEST_PASSWORD);
-    expect(res.status).toBe(204);
-    expect((res.headers['set-cookie'] as unknown as string[])[0]).toContain('Max-Age=43200');
-  });
-
   it('stores the session by token hash, with the client IP and User-Agent', async () => {
     const user = await createTestUser();
     const res = await login(buildTestApp(), user.username, DEFAULT_TEST_PASSWORD).set(
@@ -95,7 +88,7 @@ describe('POST /api/auth/login', () => {
 
     const session = await SessionModel.findOne().lean();
     expect(session).toMatchObject({
-      tokenHash: hashSessionToken(token),
+      tokenHash: hashToken(token),
       userId: user._id,
       ua: 'Mozilla/5.0 (Linux; Android 14)',
     });

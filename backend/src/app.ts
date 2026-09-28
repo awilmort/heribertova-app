@@ -14,7 +14,12 @@ import { apiRoutes } from './routing/registry';
 
 export type AppConfig = Pick<
   Env,
-  'TRUST_PROXY' | 'RATE_LIMIT_MAX' | 'RATE_LIMIT_WINDOW_MS' | 'LOGIN_RATE_LIMIT_MAX' | 'APP_ORIGIN'
+  | 'TRUST_PROXY'
+  | 'RATE_LIMIT_MAX'
+  | 'RATE_LIMIT_WINDOW_MS'
+  | 'LOGIN_RATE_LIMIT_MAX'
+  | 'APP_ORIGIN'
+  | 'TOTP_ENC_KEY'
 >;
 
 /** External services the app talks to, injected so tests can stand them in without an emulator. */

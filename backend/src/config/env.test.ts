@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { loadEnv } from './env';
 
 const MONGODB_URI = 'mongodb://localhost:27017/heribertova';
+const TOTP_KEY_BASE64 = Buffer.alloc(32, 7).toString('base64');
 
 /** The variables without a default: the minimum a valid environment must define. */
 const required = {
@@ -12,12 +13,14 @@ const required = {
   S3_IMPORTS_BUCKET: 'imports',
   APP_ORIGIN: 'http://localhost:3000',
   TURNSTILE_SECRET_KEY: 'test-turnstile-secret',
+  TOTP_ENC_KEY: TOTP_KEY_BASE64,
 };
 
 describe('loadEnv', () => {
   it('applies defaults when only the required variables are set', () => {
     expect(loadEnv(required)).toEqual({
       ...required,
+      TOTP_ENC_KEY: Buffer.alloc(32, 7),
       NODE_ENV: 'development',
       PORT: 4000,
       LOG_LEVEL: 'info',
@@ -103,9 +106,12 @@ describe('loadEnv', () => {
   });
 
   describe('authentication', () => {
-    it.each(['APP_ORIGIN', 'TURNSTILE_SECRET_KEY'] as const)('fails when %s is missing', (name) => {
-      expect(() => loadEnv({ ...required, [name]: undefined })).toThrow(new RegExp(name));
-    });
+    it.each(['APP_ORIGIN', 'TURNSTILE_SECRET_KEY', 'TOTP_ENC_KEY'] as const)(
+      'fails when %s is missing',
+      (name) => {
+        expect(() => loadEnv({ ...required, [name]: undefined })).toThrow(new RegExp(name));
+      },
+    );
 
     it('reduces APP_ORIGIN to its origin, so a trailing slash cannot break the Origin check', () => {
       expect(loadEnv({ ...required, APP_ORIGIN: 'https://heribertova.do/' }).APP_ORIGIN).toBe(
@@ -126,6 +132,23 @@ describe('loadEnv', () => {
         loadEnv({ ...required, TURNSTILE_SECRET_KEY: 'turnstile-secret', PORT: 'x' });
       expect(run).toThrow(/PORT/);
       expect(run).not.toThrow(/turnstile-secret/);
+    });
+
+    it('decodes TOTP_ENC_KEY to its 32 bytes', () => {
+      const key = Buffer.alloc(32, 0xab);
+      expect(loadEnv({ ...required, TOTP_ENC_KEY: key.toString('base64') }).TOTP_ENC_KEY).toEqual(
+        key,
+      );
+    });
+
+    it.each([
+      ['not base64', 'not base64!'],
+      ['16 bytes', Buffer.alloc(16, 1).toString('base64')],
+      ['33 bytes', Buffer.alloc(33, 1).toString('base64')],
+    ])('rejects a TOTP_ENC_KEY that is %s, without echoing it', (_label, value) => {
+      const run = () => loadEnv({ ...required, TOTP_ENC_KEY: value });
+      expect(run).toThrow(/TOTP_ENC_KEY/);
+      expect(run).not.toThrow(value);
     });
   });
 });

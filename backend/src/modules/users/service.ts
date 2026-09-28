@@ -1,6 +1,8 @@
 import {
   minPasswordLength,
   outranks,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_TOO_LONG_MESSAGE,
   passwordTooShortMessage,
   type ChangePasswordRequest,
   type Role,
@@ -96,9 +98,24 @@ function invalidField(field: keyof ChangePasswordRequest, message: string): AppE
 }
 
 /**
+ * Why `password` cannot be chosen by a `role` user born on `birthDate` ("YYYY-MM-DD"), in Spanish;
+ * null when it can. It must be long enough for the role (14 characters for the superadmin) and
+ * not the birth date, which is as guessable as the default password (§7).
+ */
+export function newPasswordProblem(password: string, role: Role, birthDate: string): string | null {
+  const minLength = minPasswordLength(role);
+  if (password.length < minLength) return passwordTooShortMessage(minLength);
+  if (password.length > PASSWORD_MAX_LENGTH) return PASSWORD_TOO_LONG_MESSAGE;
+  if (isBirthDatePassword(password, birthDate)) {
+    return 'La nueva contraseña no puede ser su fecha de nacimiento.';
+  }
+  return null;
+}
+
+/**
  * A user replaces their own password (`/perfil`). It needs the current password, and the new one
- * may not be the birth date (the guessable default) nor, for the superadmin, shorter than 14
- * characters. Every other session of the user ends; the one making the change (`currentToken`) stays.
+ * must pass `newPasswordProblem`. Every other session of the user ends; the one making the change
+ * (`currentToken`) stays.
  */
 export async function changeOwnPassword(
   actor: Actor,
@@ -109,14 +126,9 @@ export async function changeOwnPassword(
   if (!(await verifyPassword(user.passwordHash, currentPassword))) {
     throw invalidField('currentPassword', 'La contraseña actual no es correcta.');
   }
-  const minLength = minPasswordLength(user.role);
-  if (newPassword.length < minLength) {
-    throw invalidField('newPassword', passwordTooShortMessage(minLength));
-  }
   const person = await personOf(user);
-  if (isBirthDatePassword(newPassword, person.voterSnapshot.birthDate)) {
-    throw invalidField('newPassword', 'La nueva contraseña no puede ser su fecha de nacimiento.');
-  }
+  const problem = newPasswordProblem(newPassword, user.role, person.voterSnapshot.birthDate);
+  if (problem) throw invalidField('newPassword', problem);
 
   const passwordHash = await hashPassword(newPassword);
   await mongoose.connection.transaction(async (session) => {
