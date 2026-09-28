@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { changePasswordRequestSchema, loginRequestSchema, meResponseSchema } from './auth';
+import {
+  changePasswordRequestSchema,
+  loginRequestSchema,
+  meResponseSchema,
+  totpRequiredResponseSchema,
+  totpVerifyRequestSchema,
+} from './auth';
 
 const validLogin = { cedula: '00112345672', password: '15031985', turnstileToken: 'token' };
 
@@ -101,5 +107,32 @@ describe('changePasswordRequestSchema', () => {
     expect(
       changePasswordRequestSchema.safeParse({ ...valid, newPassword: 'x'.repeat(256) }).success,
     ).toBe(true);
+  });
+});
+
+describe('totpRequiredResponseSchema', () => {
+  it('is exactly { totpRequired: true }', () => {
+    expect(totpRequiredResponseSchema.parse({ totpRequired: true })).toEqual({
+      totpRequired: true,
+    });
+    expect(totpRequiredResponseSchema.safeParse({ totpRequired: false }).success).toBe(false);
+    expect(totpRequiredResponseSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('totpVerifyRequestSchema', () => {
+  it('accepts 6 digits, leading zeros included', () => {
+    expect(totpVerifyRequestSchema.parse({ code: '012345' })).toEqual({ code: '012345' });
+  });
+
+  it.each(['', '12345', '1234567', '123 456', '12345a', ' 123456'])('rejects %j', (code) => {
+    const result = totpVerifyRequestSchema.safeParse({ code });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe('Ingrese los 6 dígitos del código.');
+  });
+
+  it('rejects a missing or non-string code', () => {
+    expect(totpVerifyRequestSchema.safeParse({}).success).toBe(false);
+    expect(totpVerifyRequestSchema.safeParse({ code: 123456 }).success).toBe(false);
   });
 });

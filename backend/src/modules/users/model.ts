@@ -24,6 +24,13 @@ export interface User {
   /** Logins are refused until this moment. */
   lockUntil: Date | null;
   lastLoginAt: Date | null;
+  /**
+   * The superadmin's TOTP secret, encrypted with TOTP_ENC_KEY (lib/secretBox); null for every
+   * other role. Required for the superadmin, whose login always takes a second step.
+   */
+  totpSecretEnc: string | null;
+  /** The last TOTP time step accepted, so a code is never accepted twice (replay). */
+  totpLastUsedStep: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +49,14 @@ const userSchema = new Schema<User>(
     failedAttempts: { type: Number, default: 0, min: 0 },
     lockUntil: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
+    totpSecretEnc: {
+      type: String,
+      default: null,
+      required(this: User) {
+        return this.role === 'superadmin';
+      },
+    },
+    totpLastUsedStep: { type: Number, default: null },
   },
   { collection: 'users', timestamps: true, versionKey: false },
 );

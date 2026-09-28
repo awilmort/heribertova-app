@@ -56,6 +56,14 @@ export function loginRateLimit(max: number): RequestHandler {
   });
 }
 
+/**
+ * Failed TOTP codes per client IP (the superadmin's second login step), on top of the per-challenge
+ * cap and the account lockout.
+ */
+export function totpRateLimit(max: number): RequestHandler {
+  return failureRateLimit(max, (req) => ipKeyGenerator(req.ip ?? ''));
+}
+
 /** Wrong current passwords one user may send in 15 minutes before a pause. */
 const PASSWORD_CHANGE_FAILURES_MAX = 10;
 

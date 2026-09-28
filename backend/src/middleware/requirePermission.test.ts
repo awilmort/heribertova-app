@@ -1,5 +1,5 @@
 import express from 'express';
-import request from 'supertest';
+import { request } from '../../test/http';
 import { apiErrorBodySchema, type Role } from '@heribertova/shared';
 import { describe, expect, it } from 'vitest';
 import { createLogger } from '../lib/logger';

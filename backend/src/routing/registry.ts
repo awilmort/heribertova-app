@@ -17,6 +17,7 @@ export function apiRoutes(config: AppConfig, dependencies: AppDependencies): Api
     ...createAuthRoutes({
       verifyTurnstile: dependencies.verifyTurnstile,
       loginRateLimitMax: config.LOGIN_RATE_LIMIT_MAX,
+      totpKey: config.TOTP_ENC_KEY,
     }),
     ...createMeRoutes(),
     ...createUserRoutes(),

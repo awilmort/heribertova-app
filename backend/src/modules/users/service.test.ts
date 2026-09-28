@@ -6,7 +6,7 @@ import { createTestPerson } from '../../../test/users';
 import { verifyPassword } from '../../lib/password';
 import { PersonModel } from '../people/model';
 import { UserModel } from './model';
-import { createLoginForPerson } from './service';
+import { createLoginForPerson, newPasswordProblem } from './service';
 
 useTestDatabase();
 
@@ -106,5 +106,41 @@ describe('createLoginForPerson', () => {
       ),
     ).rejects.toThrow('Birth date is not a "YYYY-MM-DD" string');
     await expect(UserModel.countDocuments()).resolves.toBe(0);
+  });
+});
+
+describe('newPasswordProblem', () => {
+  const BIRTH_DATE = '1985-03-15';
+
+  it('accepts a long enough password that is not the birth date', () => {
+    expect(newPasswordProblem('abcdefgh', 'team_leader', BIRTH_DATE)).toBeNull();
+    expect(newPasswordProblem('a'.repeat(14), 'superadmin', BIRTH_DATE)).toBeNull();
+  });
+
+  it('requires 8 characters, and 14 from the superadmin', () => {
+    expect(newPasswordProblem('abcdefg', 'general_coordinator', BIRTH_DATE)).toBe(
+      'La contraseña debe tener al menos 8 caracteres.',
+    );
+    expect(newPasswordProblem('a'.repeat(13), 'superadmin', BIRTH_DATE)).toBe(
+      'La contraseña debe tener al menos 14 caracteres.',
+    );
+  });
+
+  it('caps the length', () => {
+    expect(newPasswordProblem('a'.repeat(257), 'superadmin', BIRTH_DATE)).toBe(
+      'La contraseña es demasiado larga.',
+    );
+    expect(newPasswordProblem('a'.repeat(256), 'superadmin', BIRTH_DATE)).toBeNull();
+  });
+
+  it('refuses the birth date in either order, with or without separators', () => {
+    for (const password of ['15031985', '1985-03-15', '15 / 03 / 1985']) {
+      expect(newPasswordProblem(password, 'aspiring_leader', BIRTH_DATE)).toBe(
+        'La nueva contraseña no puede ser su fecha de nacimiento.',
+      );
+    }
+    expect(newPasswordProblem('15 / 03 / 1985', 'superadmin', BIRTH_DATE)).toBe(
+      'La nueva contraseña no puede ser su fecha de nacimiento.',
+    );
   });
 });

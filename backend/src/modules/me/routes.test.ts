@@ -1,4 +1,4 @@
-import request from 'supertest';
+import { request } from '../../../test/http';
 import { apiErrorBodySchema, meResponseSchema, ROLE_PERMISSIONS, ROLES } from '@heribertova/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -7,6 +7,7 @@ import {
   loginToken,
   sameOriginHeaders,
   sessionCookie,
+  superadminLoginToken,
 } from '../../../test/app';
 import { useTestDatabase } from '../../../test/database';
 import { createTestUser, DEFAULT_TEST_PASSWORD } from '../../../test/users';
@@ -54,7 +55,8 @@ function expectCookieCleared(res: request.Response) {
 
 async function loggedIn(options: Parameters<typeof createTestUser>[0] = {}) {
   const user = await createTestUser(options);
-  return { user, token: await loginToken(app, user.username, DEFAULT_TEST_PASSWORD) };
+  const logIn = user.role === 'superadmin' ? superadminLoginToken : loginToken;
+  return { user, token: await logIn(app, user.username, DEFAULT_TEST_PASSWORD) };
 }
 
 describe('GET /api/me', () => {

@@ -39,6 +39,26 @@ describe('UserModel', () => {
     ).rejects.toMatchObject(DUPLICATE_KEY);
   });
 
+  it('refuses a second superadmin written straight to the collection (no Mongoose, no app check)', async () => {
+    const first = await createTestUser({ role: 'superadmin' });
+    await expect(
+      UserModel.collection.insertOne({
+        ...first.toObject(),
+        _id: new Types.ObjectId(),
+        personId: new Types.ObjectId(),
+        username: uniqueCedula(),
+      }),
+    ).rejects.toMatchObject({ ...DUPLICATE_KEY, keyPattern: { role: 1 } });
+  });
+
+  it('requires a TOTP secret of the superadmin only', async () => {
+    await expect(createTestUser({ role: 'superadmin', totpSecretEnc: null })).rejects.toThrow(
+      /totpSecretEnc/,
+    );
+    const leader = await createTestUser({ role: 'team_leader' });
+    expect(leader.toObject()).toMatchObject({ totpSecretEnc: null, totpLastUsedStep: null });
+  });
+
   it('allows any number of accounts in every other role', async () => {
     for (let i = 0; i < 3; i++) {
       await createTestUser({ role: 'team_leader' });

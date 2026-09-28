@@ -1,17 +1,35 @@
-import { loginRequestSchema, type LoginRequest } from '@heribertova/shared';
+import {
+  loginRequestSchema,
+  totpVerifyRequestSchema,
+  type LoginRequest,
+  type TotpRequiredResponse,
+  type TotpVerifyRequest,
+} from '@heribertova/shared';
+import type { Request, Response } from 'express';
 import { AppError } from '../../lib/errors';
-import { loginRateLimit } from '../../middleware/rateLimit';
+import { loginRateLimit, totpRateLimit } from '../../middleware/rateLimit';
 import { validate } from '../../middleware/validate';
 import type { ApiRoute } from '../../routing/apiRoute';
-import { clearSessionCookie, readSessionToken, setSessionCookie } from '../sessions/cookie';
+import {
+  clearSessionCookie,
+  clearTotpChallengeCookie,
+  readSessionToken,
+  readTotpChallengeToken,
+  setSessionCookie,
+  setTotpChallengeCookie,
+} from '../sessions/cookie';
 import { createSession, deleteSession } from '../sessions/service';
-import { authenticate } from './service';
+import type { UserDocument } from '../users/model';
+import { authenticate, completeLogin } from './service';
+import { requiresTotp, startTotpChallenge, verifyTotpChallenge } from './totp';
 import type { TurnstileVerifier } from './turnstile';
 
 export interface AuthRoutesOptions {
   verifyTurnstile: TurnstileVerifier;
-  /** Failed logins allowed per client IP + cédula per 15 minutes. */
+  /** Failed logins allowed per client IP + cédula (and failed TOTP codes per IP) per 15 minutes. */
   loginRateLimitMax: number;
+  /** TOTP_ENC_KEY: decrypts the superadmin's TOTP secret. */
+  totpKey: Buffer;
 }
 
 /** One answer for every failed login, so it never tells whether a cédula has an account. */
@@ -23,9 +41,26 @@ function invalidCredentials(): AppError {
   );
 }
 
+/**
+ * Completes a login: resets the lockout count and opens a session with a new token. The session the
+ * browser already had is dropped, so a session planted before login (fixation) cannot be reused.
+ */
+async function openSession(req: Request, res: Response, user: UserDocument): Promise<void> {
+  const previousToken = readSessionToken(req);
+  if (previousToken) await deleteSession(previousToken);
+  await completeLogin(user);
+  const session = await createSession(user, {
+    ip: req.ip ?? null,
+    userAgent: req.get('User-Agent') ?? null,
+  });
+  setSessionCookie(res, session.token, session.maxAgeMs);
+  req.log.info({ userId: user.id }, 'Login succeeded');
+}
+
 export function createAuthRoutes({
   verifyTurnstile,
   loginRateLimitMax,
+  totpKey,
 }: AuthRoutesOptions): ApiRoute[] {
   return [
     {
@@ -49,15 +84,52 @@ export function createAuthRoutes({
             throw invalidCredentials();
           }
 
-          // A new token on every login: a session planted before login (fixation) is dropped.
-          const previousToken = readSessionToken(req);
-          if (previousToken) await deleteSession(previousToken);
-          const session = await createSession(result.user, {
-            ip: req.ip ?? null,
-            userAgent: req.get('User-Agent') ?? null,
-          });
-          setSessionCookie(res, session.token, session.maxAgeMs);
-          req.log.info({ userId: result.user.id }, 'Login succeeded');
+          if (requiresTotp(result.user)) {
+            // No session yet: only a challenge that POST /auth/totp/verify can turn into one.
+            const challenge = await startTotpChallenge(result.user);
+            setTotpChallengeCookie(res, challenge.token, challenge.maxAgeMs);
+            req.log.info({ userId: result.user.id }, 'Password accepted, TOTP code required');
+            res.status(202).json({ totpRequired: true } satisfies TotpRequiredResponse);
+            return;
+          }
+          await openSession(req, res, result.user);
+          res.status(204).end();
+        },
+      ],
+    },
+    {
+      method: 'post',
+      path: '/auth/totp/verify',
+      // Public: the caller has no session yet. The TOTP challenge cookie is what it checks.
+      access: 'public',
+      handlers: [
+        validate({ body: totpVerifyRequestSchema }),
+        totpRateLimit(loginRateLimitMax),
+        async (req, res) => {
+          const token = readTotpChallengeToken(req);
+          const result = token
+            ? await verifyTotpChallenge(token, (req.body as TotpVerifyRequest).code, totpKey)
+            : ({ ok: false, reason: 'no_challenge' } as const);
+
+          if (!result.ok) {
+            req.log.warn({ reason: result.reason }, 'TOTP verification failed');
+            if (result.reason === 'wrong_code' || result.reason === 'reused_code') {
+              throw new AppError(
+                401,
+                'INVALID_TOTP_CODE',
+                'El código no es válido. Escriba el código que muestra ahora su aplicación.',
+              );
+            }
+            clearTotpChallengeCookie(res);
+            throw new AppError(
+              401,
+              'UNAUTHENTICATED',
+              'La verificación expiró. Inicie sesión nuevamente.',
+            );
+          }
+
+          clearTotpChallengeCookie(res);
+          await openSession(req, res, result.user);
           res.status(204).end();
         },
       ],

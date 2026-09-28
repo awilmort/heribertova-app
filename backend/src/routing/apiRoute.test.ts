@@ -1,6 +1,6 @@
 import cookieParser from 'cookie-parser';
 import express, { type RequestHandler } from 'express';
-import request from 'supertest';
+import { request } from '../../test/http';
 import { apiErrorBodySchema, type Role } from '@heribertova/shared';
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SECRET_BOX_KEY_BYTES } from '../lib/secretBox';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -25,6 +26,16 @@ const envSchema = z.object({
   APP_ORIGIN: z.url({ protocol: /^https?$/ }).transform((url) => new URL(url).origin),
   /** Cloudflare Turnstile secret for the login bot check (the always-pass test secret locally). */
   TURNSTILE_SECRET_KEY: z.string().min(1),
+  /**
+   * AES-256-GCM key (32 bytes, base64: `openssl rand -base64 32`) that encrypts the superadmin's
+   * TOTP secret at rest (lib/secretBox). Losing it means re-enrolling TOTP; changing it too.
+   */
+  TOTP_ENC_KEY: z
+    .base64('must be base64 (openssl rand -base64 32)')
+    .transform((value) => Buffer.from(value, 'base64'))
+    .refine((key) => key.length === SECRET_BOX_KEY_BYTES, {
+      message: `must decode to ${SECRET_BOX_KEY_BYTES} bytes (openssl rand -base64 32)`,
+    }),
 
   // Object storage: AWS S3 in production, the S3-compatible emulator locally (docker-compose.dev.yml).
   AWS_REGION: z.string().min(1).default('us-east-1'),

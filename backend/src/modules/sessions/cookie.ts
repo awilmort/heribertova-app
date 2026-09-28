@@ -1,11 +1,18 @@
 import type { CookieOptions, Request, Response } from 'express';
 
 /**
+ * The login cookies: the session (`__Host-sid`) and, between the superadmin's password and TOTP
+ * steps, the TOTP challenge (`__Host-totp`). Each carries a random token whose hash is looked up
+ * in its own collection, so neither can stand in for the other.
+ *
  * `__Host-` makes the browser insist on Secure, Path=/ and no Domain, so no subdomain or plain-http
- * page can set or overwrite it. Browsers treat http://localhost as a secure context, so the Secure
- * cookie also works in local development (Next.js on :3000 forwarding /api to the API).
+ * page can set or overwrite them. Browsers treat http://localhost as a secure context, so Secure
+ * cookies also work in local development (Next.js on :3000 forwarding /api to the API).
  */
 export const SESSION_COOKIE = '__Host-sid';
+export const TOTP_CHALLENGE_COOKIE = '__Host-totp';
+
+type LoginCookie = typeof SESSION_COOKIE | typeof TOTP_CHALLENGE_COOKIE;
 
 const COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
@@ -14,19 +21,43 @@ const COOKIE_OPTIONS: CookieOptions = {
   path: '/',
 };
 
-/** 32 bytes in base64url. Anything else in the cookie is ignored without a database lookup. */
+/** 32 bytes in base64url (lib/token). Anything else in the cookie is ignored without a database lookup. */
 const TOKEN_PATTERN = /^[\w-]{43}$/;
 
+function setTokenCookie(res: Response, name: LoginCookie, token: string, maxAgeMs: number): void {
+  res.cookie(name, token, { ...COOKIE_OPTIONS, maxAge: maxAgeMs });
+}
+
+function clearTokenCookie(res: Response, name: LoginCookie): void {
+  res.clearCookie(name, COOKIE_OPTIONS);
+}
+
+/** The token in the request's cookie `name` (parsed by cookie-parser), or null. */
+function readTokenCookie(req: Request, name: LoginCookie): string | null {
+  const value: unknown = (req.cookies as Record<string, unknown> | undefined)?.[name];
+  return typeof value === 'string' && TOKEN_PATTERN.test(value) ? value : null;
+}
+
 export function setSessionCookie(res: Response, token: string, maxAgeMs: number): void {
-  res.cookie(SESSION_COOKIE, token, { ...COOKIE_OPTIONS, maxAge: maxAgeMs });
+  setTokenCookie(res, SESSION_COOKIE, token, maxAgeMs);
 }
 
 export function clearSessionCookie(res: Response): void {
-  res.clearCookie(SESSION_COOKIE, COOKIE_OPTIONS);
+  clearTokenCookie(res, SESSION_COOKIE);
 }
 
-/** The session token from the request's cookie (parsed by cookie-parser), or null. */
 export function readSessionToken(req: Request): string | null {
-  const value: unknown = (req.cookies as Record<string, unknown> | undefined)?.[SESSION_COOKIE];
-  return typeof value === 'string' && TOKEN_PATTERN.test(value) ? value : null;
+  return readTokenCookie(req, SESSION_COOKIE);
+}
+
+export function setTotpChallengeCookie(res: Response, token: string, maxAgeMs: number): void {
+  setTokenCookie(res, TOTP_CHALLENGE_COOKIE, token, maxAgeMs);
+}
+
+export function clearTotpChallengeCookie(res: Response): void {
+  clearTokenCookie(res, TOTP_CHALLENGE_COOKIE);
+}
+
+export function readTotpChallengeToken(req: Request): string | null {
+  return readTokenCookie(req, TOTP_CHALLENGE_COOKIE);
 }

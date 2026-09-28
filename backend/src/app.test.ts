@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 import mongoose from 'mongoose';
-import request from 'supertest';
+import { request } from '../test/http';
 import { apiErrorBodySchema, healthResponseSchema } from '@heribertova/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { buildTestApp, sameOriginHeaders } from '../test/app';

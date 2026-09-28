@@ -46,6 +46,7 @@ Run from the repository root.
 | `pnpm --filter backend voters:fake --out tmp/voters-20k.json [--voters 20000]` | Write a synthetic Higüey voter file in the real export's shape (`tmp/` is gitignored; 181551 voters = real size) |
 | `pnpm --filter backend voters:import --file <path> --dry-run` | Validate a voter file and print its report (accepted, rejected, check-digit warnings, recintos, colegios, sectors, diff); writes nothing |
 | `pnpm --filter backend voters:import --file <path> --cut <label> [--apply]` | Stage the file (report only), or with `--apply` stage and apply it to `voters`/`recintos`. The same file (SHA-256) is never imported twice |
+| `pnpm --filter backend superadmin:create` | Create the one superadmin (the owner): asks for the cédula (must be in the imported padrón), phone, a password of at least 14 characters, and enrolls TOTP (terminal QR + otpauth URI). Refuses if a superadmin exists. Built as `dist/scripts/create-superadmin.js` for production |
 
 ## Git
 

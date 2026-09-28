@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 import express from 'express';
-import request from 'supertest';
+import { request } from '../../test/http';
 import { apiErrorBodySchema } from '@heribertova/shared';
 import { describe, expect, it } from 'vitest';
 import { AppError } from '../lib/errors';
