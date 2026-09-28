@@ -8,7 +8,9 @@
     "start": "node dist/index.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "s3:check": "tsx --env-file-if-exists=.env scripts/s3-check.ts"
+    "s3:check": "tsx --env-file-if-exists=.env scripts/s3-check.ts",
+    "voters:import": "tsx --max-old-space-size=160 --env-file-if-exists=.env scripts/voters-import.ts",
+    "voters:fake": "tsx scripts/fake-voter-file.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",
@@ -19,6 +21,7 @@
     "mongoose": "^9.10.2",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
+    "stream-json": "^3.7.0",
     "zod": "catalog:"
   },
   "devDependencies": {

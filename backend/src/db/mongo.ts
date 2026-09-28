@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from 'node:timers/promises';
-import mongoose from 'mongoose';
+import mongoose, { type ConnectOptions } from 'mongoose';
 import type { Logger } from '../lib/logger';
 
 export interface RetryOptions {
@@ -28,9 +28,17 @@ export async function connectWithRetry(
   }
 }
 
-export async function connectMongo(uri: string, logger: Logger): Promise<void> {
+/** Connection options callers may set: `autoCreate`/`autoIndex` false keeps a read-only run from writing. */
+export type MongoConnectOptions = Pick<ConnectOptions, 'autoCreate' | 'autoIndex'>;
+
+export async function connectMongo(
+  uri: string,
+  logger: Logger,
+  options: MongoConnectOptions = {},
+): Promise<void> {
   mongoose.set('strictQuery', true);
-  await connectWithRetry(() => mongoose.connect(uri, { serverSelectionTimeoutMS: 5_000 }), {
+  const connect = () => mongoose.connect(uri, { serverSelectionTimeoutMS: 5_000, ...options });
+  await connectWithRetry(connect, {
     attempts: 5,
     baseDelayMs: 1_000,
     logger,

@@ -91,7 +91,7 @@ The format is **confirmed from the sample `padron_higuey_mayo2024.json` (padrón
 - **`fullName`** = `nombres + apellido1 + (apellido2 ?? "")`, trimmed.
 - **New voters:** people who turn 18 after the May 2024 cut are not in this file. A newer cut must be imported before the election (the `/admin/padron` importer handles this).
 
-**Size on Atlas M0:** dropping the constant fields, a voter document is about 220 bytes. That is about 40 MB of data plus about 20 MB of indexes, roughly 12 % of the 512 MB limit.
+**Size on Atlas M0:** dropping the constant fields, a voter document is about 400 bytes of BSON (measured in 2.1 on the 181,551-record synthetic file: 72 MB of data, 19.5 MB compressed on disk, plus 25 MB of indexes). That is under 100 MB, roughly 19 % of the 512 MB limit.
 
 ### 3.2 Import (superadmin only)
 1. The browser uploads the file **directly to a private S3 "imports" bucket** with a presigned PUT (≤ 150 MB, `application/json`). A 63 MB request body would exceed Vercel's request-size limits (4.5 MB for functions; don't rely on the rewrite proxy for large bodies), and it should not be buffered in Render's 512 MB of RAM. The object expires after 7 days.
@@ -173,7 +173,7 @@ voters {            // from the uploaded file (§3.1); read-only except via impo
   checkDigitValid: boolean       // informational (87 real cédulas fail it)
   status: 'active'|'inactive', importId, updatedAt
 }  idx: {recintoKey:1, colegioId:1}, {birthMonth:1, birthDay:1}, {searchName:1}, {status:1}
-// ~220 B/doc × 181,551 ≈ 40 MB + ~20 MB indexes
+// ~400 B/doc × 181,551 ≈ 72 MB + ~25 MB indexes (measured, plan 2.1)
 
 recintos {          // rebuilt on every import
   _id: recintoKey                // "escuela-primaria-rural--juanillo"
@@ -206,7 +206,7 @@ settings { _id: 'promotion', nominationMinInitialMembers: 2, autoPromotionThresh
 
 auditLogs { actorUserId, action, entity, entityId, summary (PII-masked), ip, at (TTL 365 d) }
 
-voterImports { _id, cut, fileName, s3Key, sha256, rows, accepted, rejected, warnings, diff, status: 'uploaded'|'validating'|'staged'|'applying'|'applied'|'failed', uploadedBy, createdAt, appliedAt }   // Phase 10
+voterImports { _id, cut, fileName, s3Key, sha256 (unique), report: { rows, accepted, rejected, warnings, totals, diff, source }, status: 'uploaded'|'validating'|'staged'|'applying'|'applied'|'failed', failureReason, uploadedBy, createdAt, appliedAt }   // plan 2.1 (CLI), 9.1 (UI)
 ```
 
 **Why `ancestors` instead of recursive lookups:** "everyone under me" is one indexed query (`{ancestors: myPersonId}`), which is cheap on M0. This is the standard MongoDB tree pattern.
