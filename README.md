@@ -22,6 +22,13 @@ Open http://localhost:3000. The home page shows the API status; http://localhost
 should report `{"status":"ok","mongo":"up","s3":"up"}`. `pnpm dev:down` stops the services
 (data is kept in Docker volumes).
 
+**Logging in locally.** The session cookie is `__Host-sid` (`Secure`, `HttpOnly`, `SameSite=Lax`).
+Browsers accept `Secure` cookies from `http://localhost`, so it works over plain http as long as
+you open the app at **http://localhost:3000** (not `127.0.0.1` or a LAN IP; Chrome and Firefox are
+known to work, Safari may drop it). The browser only ever talks to :3000; Next forwards `/api/*` to
+the API, which only accepts state-changing requests whose `Origin` is `APP_ORIGIN`
+(`http://localhost:3000` in `backend/.env`). Turnstile uses Cloudflare's always-pass test keys.
+
 The `.env.example` values are local-only: the emulator's throwaway credentials and Cloudflare's
 public Turnstile test keys. Real secrets live only in the hosting providers' settings.
 

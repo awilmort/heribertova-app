@@ -46,7 +46,8 @@ export async function apiRequest<T>(
   const res = await fetch(`/api${path}`, {
     ...init,
     credentials: 'same-origin',
-    headers: { Accept: 'application/json', ...init?.headers },
+    // The API's CSRF guard requires X-Requested-With on state-changing requests.
+    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...init?.headers },
   });
   const body = await readJson(res);
 

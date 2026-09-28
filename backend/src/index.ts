@@ -2,6 +2,7 @@ import { createApp } from './app';
 import { loadEnv } from './config/env';
 import { connectMongo, disconnectMongo } from './db/mongo';
 import { createLogger } from './lib/logger';
+import { createTurnstileVerifier } from './modules/auth/turnstile';
 import { createS3Client, pingBucket } from './storage/s3';
 
 const env = loadEnv();
@@ -12,6 +13,7 @@ const s3 = createS3Client(env);
 
 const server = createApp(env, logger, {
   pingS3: () => pingBucket(s3, env.S3_MEDIA_BUCKET),
+  verifyTurnstile: createTurnstileVerifier(env.TURNSTILE_SECRET_KEY, logger),
 }).listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'API listening');
 });

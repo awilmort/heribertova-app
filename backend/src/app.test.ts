@@ -3,19 +3,16 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import { apiErrorBodySchema, healthResponseSchema } from '@heribertova/shared';
 import { describe, expect, it, vi } from 'vitest';
+import { buildTestApp, sameOriginHeaders } from '../test/app';
 import { connectTestDatabase, useTestDatabase } from '../test/database';
-import { createApp, type AppConfig, type AppDependencies } from './app';
+import type { AppConfig, AppDependencies } from './app';
 import { createLogger } from './lib/logger';
 
 useTestDatabase();
 
-const config: AppConfig = { TRUST_PROXY: 0, RATE_LIMIT_MAX: 1000, RATE_LIMIT_WINDOW_MS: 60_000 };
-const silent = createLogger('silent');
-/** S3 is stood in: these tests exercise the app, not the emulator. */
-const s3Up: AppDependencies = { pingS3: () => Promise.resolve(true) };
-
-function buildApp(overrides: Partial<AppConfig> = {}, dependencies = s3Up) {
-  return createApp({ ...config, ...overrides }, silent, dependencies);
+/** External services are stood in: these tests exercise the app, not the emulator. */
+function buildApp(config: Partial<AppConfig> = {}, dependencies: Partial<AppDependencies> = {}) {
+  return buildTestApp({ config, dependencies });
 }
 
 describe('GET /api/health', () => {
@@ -63,6 +60,7 @@ describe('error responses', () => {
   it('rejects malformed JSON bodies with INVALID_JSON', async () => {
     const res = await request(buildApp())
       .post('/api/health')
+      .set(sameOriginHeaders)
       .set('Content-Type', 'application/json')
       .send('{"broken":');
     expect(res.status).toBe(400);
@@ -72,6 +70,7 @@ describe('error responses', () => {
   it('rejects bodies over the size limit with PAYLOAD_TOO_LARGE', async () => {
     const res = await request(buildApp())
       .post('/api/health')
+      .set(sameOriginHeaders)
       .set('Content-Type', 'application/json')
       .send(JSON.stringify({ blob: 'x'.repeat(200 * 1024) }));
     expect(res.status).toBe(413);
@@ -115,7 +114,7 @@ describe('request logging', () => {
       },
     });
     return {
-      app: createApp(config, createLogger('info', stream), s3Up),
+      app: buildTestApp({ logger: createLogger('info', stream) }),
       output: () => lines.join(''),
     };
   }
