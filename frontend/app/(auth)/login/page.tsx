@@ -1,11 +1,21 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { LoginForm } from '@/components/auth/login-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { messages } from '@/messages/es';
 
 export const metadata: Metadata = { title: messages.auth.loginTitle };
 
-/** The cédula + password form is built in plan 3.4, once the login API exists. */
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const [nonce, { next }] = await Promise.all([
+    headers().then((h) => h.get('x-nonce') ?? ''),
+    searchParams,
+  ]);
+
   return (
     <Card>
       <CardHeader>
@@ -15,7 +25,7 @@ export default function LoginPage() {
         <CardDescription>{messages.auth.loginSubtitle}</CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">{messages.auth.loginComingSoon}</p>
+        <LoginForm nonce={nonce} next={next} />
       </CardContent>
     </Card>
   );

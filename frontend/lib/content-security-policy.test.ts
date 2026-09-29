@@ -9,9 +9,16 @@ function directive(policy: string, name: string): string | undefined {
 }
 
 describe('buildContentSecurityPolicy', () => {
-  it('only allows scripts carrying the request nonce in production', () => {
+  it('only allows scripts carrying the request nonce (plus Turnstile) in production', () => {
     const policy = buildContentSecurityPolicy('abc123', false);
-    expect(directive(policy, 'script-src')).toBe("'self' 'nonce-abc123' 'strict-dynamic'");
+    expect(directive(policy, 'script-src')).toBe(
+      "'self' 'nonce-abc123' 'strict-dynamic' https://challenges.cloudflare.com",
+    );
+  });
+
+  it('only allows framing the Turnstile challenge', () => {
+    const policy = buildContentSecurityPolicy('n', false);
+    expect(directive(policy, 'frame-src')).toBe('https://challenges.cloudflare.com');
   });
 
   it("adds 'unsafe-eval' only in development", () => {

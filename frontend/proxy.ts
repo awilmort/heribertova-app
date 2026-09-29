@@ -1,11 +1,18 @@
+import { SESSION_COOKIE } from '@heribertova/shared';
 import { NextResponse, type NextRequest } from 'next/server';
+import { loginRedirectTarget } from '@/lib/auth-gate';
 import { buildContentSecurityPolicy } from '@/lib/content-security-policy';
 
 /**
- * Runs before every page request: issues a per-request CSP nonce (Next.js applies it to its own
- * scripts) and sets baseline security headers. Authentication gating is added in plan 3.4.
+ * Runs before every page request. First, a coarse authentication gate (`loginRedirectTarget`):
+ * redirects to /login when the session cookie is absent. Then it issues a per-request CSP nonce
+ * (Next.js applies it to its own scripts) and sets baseline security headers.
  */
 export function proxy(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  const redirectTo = loginRedirectTarget(pathname, search, request.cookies.has(SESSION_COOKIE));
+  if (redirectTo) return NextResponse.redirect(new URL(redirectTo, request.url));
+
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const csp = buildContentSecurityPolicy(nonce, process.env.NODE_ENV === 'development');
 
