@@ -19,19 +19,20 @@ export function actorOf(req: Request): Actor {
 export interface AuditEvent {
   action: AuditAction;
   entity: AuditEntity;
-  entityId: Types.ObjectId;
+  entityId: Types.ObjectId | null;
   /** Spanish, for the audit viewer. Any cédula in it is masked before it is stored. */
   summary: string;
 }
 
 /**
- * Records `event` in the audit log, inside the transaction (`session`) of the change it describes:
- * the change and its entry are committed together or not at all.
+ * Records `event` in the audit log. For a change, pass the transaction (`session`) that makes it:
+ * the change and its entry are committed together or not at all. A read that is audited (a padrón
+ * lookup) changes nothing, so it has no session.
  */
 export async function audit(
   actor: Actor,
   event: AuditEvent,
-  session: ClientSession,
+  session: ClientSession | null,
 ): Promise<void> {
   await AuditLogModel.create(
     [

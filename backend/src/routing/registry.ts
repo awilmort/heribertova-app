@@ -4,6 +4,7 @@ import { createAuthRoutes } from '../modules/auth/routes';
 import { createHealthRoutes } from '../modules/health/routes';
 import { createMeRoutes } from '../modules/me/routes';
 import { createUserRoutes } from '../modules/users/routes';
+import { createVoterRoutes } from '../modules/voters/routes';
 import type { ApiRoute } from './apiRoute';
 
 /**
@@ -21,5 +22,6 @@ export function apiRoutes(config: AppConfig, dependencies: AppDependencies): Api
     }),
     ...createMeRoutes(),
     ...createUserRoutes(),
+    ...createVoterRoutes({ voterLookupDailyQuota: config.VOTER_LOOKUP_DAILY_QUOTA }),
   ];
 }

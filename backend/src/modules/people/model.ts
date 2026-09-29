@@ -1,8 +1,5 @@
+import { PERSON_LEVELS, type PersonLevel } from '@heribertova/shared';
 import { model, Schema, type Types } from 'mongoose';
-
-/** A person's place in the campaign structure. `coordinator` covers both coordinator roles. */
-export const PERSON_LEVELS = ['member', 'aspiring_leader', 'team_leader', 'coordinator'] as const;
-export type PersonLevel = (typeof PERSON_LEVELS)[number];
 
 /** Follow-up status set by coordinators when validating a member (plan 5.4); null until then. */
 export const PERSON_STATUSES = [

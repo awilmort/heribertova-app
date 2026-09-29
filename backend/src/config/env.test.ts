@@ -28,6 +28,7 @@ describe('loadEnv', () => {
       RATE_LIMIT_MAX: 300,
       RATE_LIMIT_WINDOW_MS: 900_000,
       LOGIN_RATE_LIMIT_MAX: 10,
+      VOTER_LOOKUP_DAILY_QUOTA: 300,
       AWS_REGION: 'us-east-1',
       S3_FORCE_PATH_STYLE: false,
     });
@@ -125,6 +126,14 @@ describe('loadEnv', () => {
 
     it('coerces LOGIN_RATE_LIMIT_MAX', () => {
       expect(loadEnv({ ...required, LOGIN_RATE_LIMIT_MAX: '3' }).LOGIN_RATE_LIMIT_MAX).toBe(3);
+    });
+
+    it('coerces VOTER_LOOKUP_DAILY_QUOTA and rejects zero', () => {
+      const env = loadEnv({ ...required, VOTER_LOOKUP_DAILY_QUOTA: '50' });
+      expect(env.VOTER_LOOKUP_DAILY_QUOTA).toBe(50);
+      expect(() => loadEnv({ ...required, VOTER_LOOKUP_DAILY_QUOTA: '0' })).toThrow(
+        /VOTER_LOOKUP_DAILY_QUOTA/,
+      );
     });
 
     it('never echoes the Turnstile secret when the configuration is invalid', () => {

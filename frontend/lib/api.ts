@@ -1,6 +1,7 @@
 import {
   apiErrorBodySchema,
   healthResponseSchema,
+  voterCardSchema,
   type ErrorCode,
   type FieldErrors,
 } from '@heribertova/shared';
@@ -65,4 +66,6 @@ export async function apiRequest<T>(
 
 export const api = {
   health: () => apiRequest('/health', { schema: healthResponseSchema, acceptStatuses: [503] }),
+  /** Padrón card of a cédula (11 digits); each call is audited and counts toward a daily quota. */
+  lookupVoter: (cedula: string) => apiRequest(`/voters/${cedula}`, { schema: voterCardSchema }),
 };

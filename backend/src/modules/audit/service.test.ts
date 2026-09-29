@@ -79,6 +79,30 @@ describe('audit', () => {
   });
 });
 
+describe('audit of a read', () => {
+  it('records an action outside any transaction, without an entity id', async () => {
+    const who = await actor();
+    await audit(
+      who,
+      {
+        action: 'voter.lookup',
+        entity: 'voter',
+        entityId: null,
+        summary: 'Consultó en el padrón la cédula 00112345672.',
+      },
+      null,
+    );
+    const entry = await AuditLogModel.findOne().lean();
+    expect(entry).toMatchObject({
+      actorUserId: who.user._id,
+      action: 'voter.lookup',
+      entity: 'voter',
+      entityId: null,
+      summary: 'Consultó en el padrón la cédula 001-*******-2.',
+    });
+  });
+});
+
 describe('actorOf', () => {
   it('is the logged-in user and the client IP of the request', async () => {
     const user = await createTestUser();

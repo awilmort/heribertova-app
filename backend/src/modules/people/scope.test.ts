@@ -5,7 +5,7 @@ import { AppError } from '../../lib/errors';
 import { useTestDatabase } from '../../../test/database';
 import { createTestPerson } from '../../../test/users';
 import { PersonModel, type Person } from './model';
-import { assertInScope, scopeFilter, type ScopeUser } from './scope';
+import { assertInScope, isInScope, scopeFilter, type ScopeUser } from './scope';
 
 useTestDatabase();
 
@@ -101,10 +101,11 @@ function namesOf(predicate: (name: Name) => boolean): Name[] {
   return (Object.keys(tree) as Name[]).filter(predicate).sort();
 }
 
-/** The filter and the per-person check must always agree. */
+/** The filter and the per-person checks must always agree. */
 async function scopeOf(user: ScopeUser): Promise<Name[]> {
   const fromFilter = await matched(user);
   expect(admitted(user)).toEqual(fromFilter);
+  expect(namesOf((name) => isInScope(user, tree[name]))).toEqual(fromFilter);
   return fromFilter;
 }
 
