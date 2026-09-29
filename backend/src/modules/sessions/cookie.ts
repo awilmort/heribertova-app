@@ -1,15 +1,17 @@
+import { SESSION_COOKIE } from '@heribertova/shared';
 import type { CookieOptions, Request, Response } from 'express';
 
 /**
- * The login cookies: the session (`__Host-sid`) and, between the superadmin's password and TOTP
- * steps, the TOTP challenge (`__Host-totp`). Each carries a random token whose hash is looked up
- * in its own collection, so neither can stand in for the other.
+ * The login cookies: the session (`__Host-sid`, shared with the frontend's `proxy.ts`) and, between
+ * the superadmin's password and TOTP steps, the TOTP challenge (`__Host-totp`, backend-only: the
+ * frontend never reads it, it just relies on the browser sending it back). Each carries a random
+ * token whose hash is looked up in its own collection, so neither can stand in for the other.
  *
  * `__Host-` makes the browser insist on Secure, Path=/ and no Domain, so no subdomain or plain-http
  * page can set or overwrite them. Browsers treat http://localhost as a secure context, so Secure
  * cookies also work in local development (Next.js on :3000 forwarding /api to the API).
  */
-export const SESSION_COOKIE = '__Host-sid';
+export { SESSION_COOKIE };
 export const TOTP_CHALLENGE_COOKIE = '__Host-totp';
 
 type LoginCookie = typeof SESSION_COOKIE | typeof TOTP_CHALLENGE_COOKIE;

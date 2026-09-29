@@ -13,6 +13,10 @@ function mockFetch(status: number, body: unknown) {
   return fetchMock;
 }
 
+function apiError(code: string, message: string) {
+  return { error: { code, message } };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -67,5 +71,131 @@ describe('api.health', () => {
   it('fails loudly when a success body does not match the contract', async () => {
     mockFetch(200, { status: 'maybe' });
     await expect(api.health()).rejects.toThrow();
+  });
+});
+
+function mockEmptyResponse(status: number) {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status }));
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+describe('api.login', () => {
+  const request = { cedula: '00112345673', password: 'secret', turnstileToken: 'tok' };
+
+  it('reports no TOTP step on a 204 (the session cookie is already set)', async () => {
+    mockEmptyResponse(204);
+    await expect(api.login(request)).resolves.toEqual({ totpRequired: false });
+  });
+
+  it('sends the JSON body with the content type the API expects', async () => {
+    const fetchMock = mockEmptyResponse(204);
+    await api.login(request);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/login',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(request),
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }) as unknown,
+      }),
+    );
+  });
+
+  it('reports the TOTP step on a 202 (superadmin)', async () => {
+    mockFetch(202, { totpRequired: true });
+    await expect(api.login(request)).resolves.toEqual({ totpRequired: true });
+  });
+
+  it('throws the generic invalid-credentials error on a 401', async () => {
+    mockFetch(
+      401,
+      apiError(
+        'INVALID_CREDENTIALS',
+        'No pudimos iniciar su sesión. Verifique su cédula y contraseña e intente nuevamente.',
+      ),
+    );
+    const error = await api.login(request).catch((e: unknown) => e);
+    expect(error).toMatchObject({ status: 401, code: 'INVALID_CREDENTIALS' });
+  });
+});
+
+describe('api.verifyTotp', () => {
+  it('resolves on a 204', async () => {
+    mockEmptyResponse(204);
+    await expect(api.verifyTotp({ code: '123456' })).resolves.toBeUndefined();
+  });
+
+  it('throws ApiError on a wrong code', async () => {
+    mockFetch(
+      401,
+      apiError(
+        'INVALID_TOTP_CODE',
+        'El código no es válido. Escriba el código que muestra ahora su aplicación.',
+      ),
+    );
+    const error = await api.verifyTotp({ code: '000000' }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ status: 401, code: 'INVALID_TOTP_CODE' });
+  });
+});
+
+describe('api.logout', () => {
+  it('resolves on a 204, even without a prior session', async () => {
+    const fetchMock = mockEmptyResponse(204);
+    await expect(api.logout()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/logout',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+});
+
+describe('api.me', () => {
+  const me = {
+    user: { id: 'u1', username: '00112345673' },
+    person: {
+      id: 'p1',
+      fullName: 'MARÍA ALTAGRACIA RODRÍGUEZ',
+      nickname: null,
+      recintoKey: 'liceo--centro-ciudad',
+      recintoName: 'LICEO JUAN PABLO DUARTE',
+      colegioId: 4675,
+      sector: 'CENTRO CIUDAD',
+    },
+    role: 'team_leader',
+    permissions: ['voters.lookup'],
+    landing: '/panel',
+    usingDefaultPassword: true,
+  };
+
+  it('returns who is logged in', async () => {
+    mockFetch(200, me);
+    await expect(api.me()).resolves.toEqual(me);
+  });
+});
+
+describe('api.changePassword', () => {
+  it('resolves on a 204', async () => {
+    mockEmptyResponse(204);
+    await expect(
+      api.changePassword({ currentPassword: 'old-secret', newPassword: 'new-secret-1' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('throws ApiError with the field the server rejected', async () => {
+    mockFetch(400, {
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Los datos enviados no son válidos.',
+        fields: { 'body.currentPassword': ['La contraseña actual no es correcta.'] },
+      },
+    });
+    const error = await api
+      .changePassword({ currentPassword: 'wrong', newPassword: 'new-secret-1' })
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      fields: { 'body.currentPassword': ['La contraseña actual no es correcta.'] },
+    });
   });
 });

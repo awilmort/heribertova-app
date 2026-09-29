@@ -11,6 +11,50 @@ function trackCspViolations(page: Page): string[] {
   return violations;
 }
 
+const ME_RESPONSE = {
+  user: { id: 'e2e-user', username: '00112345673' },
+  person: {
+    id: 'e2e-person',
+    fullName: 'Usuario de prueba',
+    nickname: null,
+    recintoKey: 'recinto-e2e--sector-e2e',
+    recintoName: 'Recinto de prueba',
+    colegioId: 1,
+    sector: 'Sector de prueba',
+  },
+  role: 'team_leader',
+  permissions: [],
+  landing: '/panel',
+  usingDefaultPassword: false,
+};
+
+/**
+ * These smoke tests render pages without the API running (see playwright.config.ts). `proxy.ts`
+ * (plan 3.4) gates every `(app)` page behind a session cookie, so an "authenticated" page needs a
+ * cookie that satisfies that coarse check plus a stubbed `GET /api/me` (the real API isn't there to
+ * answer it) rather than an actual login.
+ */
+async function signInAs(page: Page) {
+  const baseURL = test.info().project.use.baseURL ?? 'http://localhost:3100';
+  await page.context().addCookies([
+    {
+      name: '__Host-sid',
+      value: 'e2e-fake-session-token',
+      url: baseURL,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+    },
+  ]);
+  await page.route('**/api/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(ME_RESPONSE),
+    }),
+  );
+}
+
 test('login page renders with a strict CSP and no violations', async ({ page }) => {
   const violations = trackCspViolations(page);
   const response = await page.goto('/login');
@@ -25,13 +69,20 @@ test('login page renders with a strict CSP and no violations', async ({ page }) 
   expect(violations).toEqual([]);
 });
 
-test('the root path redirects to /inicio', async ({ page }) => {
+test('the root path redirects an unauthenticated visitor to /login', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/login\?next=/);
+});
+
+test('the root path redirects a signed-in visitor to /inicio', async ({ page }) => {
+  await signInAs(page);
   await page.goto('/');
   await expect(page).toHaveURL(/\/inicio$/);
 });
 
 test('app shell renders the home page without CSP violations', async ({ page }) => {
   const violations = trackCspViolations(page);
+  await signInAs(page);
   await page.goto('/inicio');
   await expect(page.getByRole('heading', { level: 1, name: 'Inicio' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Estado del sistema' })).toBeVisible();
@@ -40,6 +91,7 @@ test('app shell renders the home page without CSP violations', async ({ page }) 
 });
 
 test('unknown pages show the Spanish not-found page', async ({ page }) => {
+  await signInAs(page);
   const response = await page.goto('/no-existe');
   expect(response?.status()).toBe(404);
   await expect(page.getByRole('heading', { name: 'Página no encontrada' })).toBeVisible();
@@ -47,6 +99,9 @@ test('unknown pages show the Spanish not-found page', async ({ page }) => {
 
 test.describe('mobile (360px)', () => {
   test.skip(({ viewport }) => (viewport?.width ?? 0) > 400, 'mobile layout only');
+  test.beforeEach(async ({ page }) => {
+    await signInAs(page);
+  });
 
   test('navigation lives in a drawer opened from the top bar', async ({ page }) => {
     await page.goto('/inicio');
@@ -74,6 +129,9 @@ test.describe('mobile (360px)', () => {
 
 test.describe('desktop', () => {
   test.skip(({ viewport }) => (viewport?.width ?? 0) <= 400, 'desktop layout only');
+  test.beforeEach(async ({ page }) => {
+    await signInAs(page);
+  });
 
   test('navigation lives in a persistent sidebar', async ({ page }) => {
     await page.goto('/inicio');

@@ -1,7 +1,9 @@
 'use client';
 
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, UserRound } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,9 +13,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { api } from '@/lib/api';
 import { messages } from '@/messages/es';
 
 export function UserMenu({ name }: { name: string }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const logout = useMutation({
+    mutationFn: api.logout,
+    onSuccess: () => {
+      queryClient.clear();
+      router.push('/login');
+    },
+  });
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -33,6 +46,15 @@ export function UserMenu({ name }: { name: string }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/perfil">{messages.shell.profile}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={logout.isPending}
+          onSelect={(event) => {
+            event.preventDefault();
+            logout.mutate();
+          }}
+        >
+          {messages.shell.logout}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

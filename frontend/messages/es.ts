@@ -31,13 +31,67 @@ export const messages = {
   shell: {
     userMenu: 'Menú de usuario',
     profile: 'Mi perfil',
-    // Placeholder until sessions exist (plan 3.4 replaces it with the logged-in user).
-    guestName: 'Usuario',
+    logout: 'Cerrar sesión',
   },
   auth: {
     loginTitle: 'Iniciar sesión',
     loginSubtitle: 'Plataforma de organización de la campaña',
-    loginComingSoon: 'El acceso con cédula y contraseña estará disponible próximamente.',
+    login: {
+      cedulaLabel: 'Cédula',
+      cedulaPlaceholder: '000-0000000-0',
+      passwordLabel: 'Contraseña',
+      submit: 'Iniciar sesión',
+      submitting: 'Iniciando sesión…',
+      forgotPassword: '¿Olvidó su contraseña? Contacte a su coordinador.',
+    },
+    totp: {
+      title: 'Verificación en dos pasos',
+      subtitle: 'Escriba el código de 6 dígitos de su aplicación de autenticación.',
+      codeLabel: 'Código',
+      verify: 'Verificar',
+      verifying: 'Verificando…',
+    },
+    password: {
+      show: 'Mostrar contraseña',
+      hide: 'Ocultar contraseña',
+    },
+    passwordChange: {
+      dialogTitle: 'Le recomendamos cambiar su contraseña',
+      dialogBody:
+        'Está usando su fecha de nacimiento como contraseña. Por seguridad, le recomendamos cambiarla ahora.',
+      changeNow: 'Cambiar ahora',
+      skip: 'Ahora no',
+      banner: 'Está usando su fecha de nacimiento como contraseña.',
+      bannerCta: 'Cámbiela aquí',
+    },
+  },
+  perfil: {
+    title: 'Mi perfil',
+    loading: 'Cargando…',
+    myDataTitle: 'Mis datos',
+    fields: {
+      fullName: 'Nombre',
+      cedula: 'Cédula',
+      recinto: 'Recinto',
+      sector: 'Sector',
+      role: 'Rol',
+    },
+    changePasswordTitle: 'Cambiar contraseña',
+    changePassword: {
+      currentPasswordLabel: 'Contraseña actual',
+      newPasswordLabel: 'Nueva contraseña',
+      minLengthHint: (minLength: number) => `Debe tener al menos ${minLength} caracteres.`,
+      submit: 'Guardar',
+      saving: 'Guardando…',
+      success: 'Su contraseña fue actualizada.',
+    },
+  },
+  roles: {
+    superadmin: 'Superadministrador(a)',
+    general_coordinator: 'Coordinador(a) general',
+    recinto_coordinator: 'Coordinador(a) de recinto',
+    team_leader: 'Líder de equipo',
+    aspiring_leader: 'Aspirante a líder',
   },
   home: {
     title: 'Inicio',

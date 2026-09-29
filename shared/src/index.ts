@@ -3,6 +3,7 @@ export * from './api/error';
 export * from './api/health';
 export * from './api/voters';
 export * from './cedula';
+export * from './cookies';
 export * from './passwords';
 export * from './permissions';
 export * from './personLevels';
