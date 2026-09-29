@@ -67,6 +67,9 @@ const CASES: Record<string, MatrixCase> = {
   'POST /api/auth/logout': { scope: 'none', send: (call) => call.post('/api/auth/logout') },
   'GET /api/me': { scope: 'none', send: (call) => call.get('/api/me') },
   'PUT /api/me/password': { scope: 'none', send: (call) => call.put('/api/me/password').send({}) },
+  // Reaches the lookup whether or not the cédula is in the padrón (404 counts as allowed).
+  'GET /api/voters/:cedula': { scope: 'none', send: (call) => call.get('/api/voters/00112345672') },
+  'GET /api/sectors': { scope: 'none', send: (call) => call.get('/api/sectors') },
   'POST /api/users/:id/reset-password': {
     scope: 'person',
     send: (call, target) => call.post(`/api/users/${target.user._id.toHexString()}/reset-password`),

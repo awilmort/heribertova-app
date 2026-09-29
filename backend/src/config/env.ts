@@ -18,6 +18,8 @@ const envSchema = z.object({
     .default(15 * 60 * 1000),
   /** Login attempts allowed per client IP + cédula in a 15-minute window (on top of the account lockout). */
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  /** Padrón lookups (`GET /api/voters/:cedula`) each user may make per Santo Domingo day (plan 2.2). */
+  VOTER_LOOKUP_DAILY_QUOTA: z.coerce.number().int().positive().default(300),
 
   /**
    * The web app's origin (scheme://host[:port]), the only `Origin` accepted on unsafe requests

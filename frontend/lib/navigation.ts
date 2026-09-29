@@ -1,4 +1,4 @@
-import { Home, type LucideIcon } from 'lucide-react';
+import { Home, Search, type LucideIcon } from 'lucide-react';
 import { messages } from '@/messages/es';
 
 export interface NavItem {
@@ -13,6 +13,7 @@ export interface NavItem {
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/inicio', label: messages.nav.home, icon: Home },
+  { href: '/padron', label: messages.nav.padron, icon: Search },
 ];
 
 /** A nav item is active on its own page and on any page nested under it. */

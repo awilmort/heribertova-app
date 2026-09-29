@@ -18,6 +18,7 @@ export type AppConfig = Pick<
   | 'RATE_LIMIT_MAX'
   | 'RATE_LIMIT_WINDOW_MS'
   | 'LOGIN_RATE_LIMIT_MAX'
+  | 'VOTER_LOOKUP_DAILY_QUOTA'
   | 'APP_ORIGIN'
   | 'TOTP_ENC_KEY'
 >;

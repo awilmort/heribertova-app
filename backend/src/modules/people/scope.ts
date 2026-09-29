@@ -46,7 +46,8 @@ export function assertInScope(user: ScopeUser, person: ScopedPerson): void {
   }
 }
 
-function isInScope(user: ScopeUser, person: ScopedPerson): boolean {
+/** Whether `person` is in the user's scope, for callers that show less rather than refuse. */
+export function isInScope(user: ScopeUser, person: ScopedPerson): boolean {
   switch (user.role) {
     case 'superadmin':
     case 'general_coordinator':
