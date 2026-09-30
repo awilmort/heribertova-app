@@ -6,16 +6,18 @@ import {
   passwordTooShortMessage,
   type ChangePasswordRequest,
   type Role,
+  type UpdateUserRequest,
 } from '@heribertova/shared';
-import mongoose from 'mongoose';
+import mongoose, { type ClientSession } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { hashPassword, verifyPassword } from '../../lib/password';
 import { audit, type Actor } from '../audit/service';
 import { PersonModel, type Person } from '../people/model';
 import { assertInScope } from '../people/scope';
+import { assertKnownRecintos } from '../recintos/validate';
 import { revokeUserSessions } from '../sessions/service';
 import { defaultPassword, isBirthDatePassword } from './defaultPassword';
-import { UserModel, type UserDocument } from './model';
+import { UserModel, type User, type UserDocument } from './model';
 
 /** What a login needs from its person: the cédula (username) and the voter's birth date. */
 export type LoginPerson = Pick<Person, '_id' | 'cedula'> & {
@@ -24,6 +26,13 @@ export type LoginPerson = Pick<Person, '_id' | 'cedula'> & {
 
 function defaultPasswordHash(person: LoginPerson): Promise<string> {
   return hashPassword(defaultPassword(person.voterSnapshot.birthDate));
+}
+
+export interface CreateLoginOptions {
+  /** recintoKeys for a recinto_coordinator (plan 4.3's appointment); empty for every other role. */
+  recintoScopes?: string[];
+  /** Runs the insert in the caller's transaction, so it commits or rolls back with it. */
+  session?: ClientSession;
 }
 
 /**
@@ -35,17 +44,26 @@ function defaultPasswordHash(person: LoginPerson): Promise<string> {
 export async function createLoginForPerson(
   person: LoginPerson,
   role: Exclude<Role, 'superadmin'>,
+  { recintoScopes = [], session }: CreateLoginOptions = {},
 ): Promise<UserDocument> {
   if ((role as Role) === 'superadmin') {
     throw new Error('The superadmin never gets a birth-date password');
   }
-  return UserModel.create({
-    personId: person._id,
-    username: person.cedula,
-    passwordHash: await defaultPasswordHash(person),
-    role,
-    usingDefaultPassword: true,
-  });
+  const [user] = await UserModel.create(
+    [
+      {
+        personId: person._id,
+        username: person.cedula,
+        passwordHash: await defaultPasswordHash(person),
+        role,
+        recintoScopes,
+        usingDefaultPassword: true,
+      },
+    ],
+    { session },
+  );
+  if (!user) throw new Error('UserModel.create returned no document');
+  return user;
 }
 
 async function personOf(user: UserDocument): Promise<Person> {
@@ -55,19 +73,43 @@ async function personOf(user: UserDocument): Promise<Person> {
 }
 
 /**
+ * "Restablecer a fecha de nacimiento" and reactivation both need to act on another account: the
+ * caller must have it in scope and outrank it, so nobody touches a peer, a superior or the
+ * superadmin (plan 3.2, 4.3).
+ */
+async function assertMayActOn(
+  actor: Actor,
+  user: UserDocument,
+  forbiddenMessage: string,
+): Promise<Person> {
+  const person = await personOf(user);
+  assertInScope(actor.user, person);
+  if (!outranks(actor.user.role, user.role)) {
+    throw new AppError(403, 'FORBIDDEN', forbiddenMessage);
+  }
+  return person;
+}
+
+/** Loads the user `userId` acts on, 404 if it does not exist. */
+async function loadUser(userId: string): Promise<UserDocument> {
+  const user = await UserModel.findById(userId);
+  if (!user) throw new AppError(404, 'NOT_FOUND', 'No encontramos ese usuario.');
+  return user;
+}
+
+/**
  * "Restablecer a fecha de nacimiento" (HERIBERTO_ARCHITECTURE.md §7): a coordinator puts a user who
  * forgot their password back on the default one. It also unlocks the account and ends all of its
  * sessions. The caller must have the user in scope and outrank them, so nobody resets a peer, a
  * superior or the superadmin (whose password is never a birth date).
  */
 export async function resetPasswordToDefault(actor: Actor, userId: string): Promise<void> {
-  const user = await UserModel.findById(userId);
-  if (!user) throw new AppError(404, 'NOT_FOUND', 'No encontramos ese usuario.');
-  const person = await personOf(user);
-  assertInScope(actor.user, person);
-  if (!outranks(actor.user.role, user.role)) {
-    throw new AppError(403, 'FORBIDDEN', 'No puede restablecer la contraseña de este usuario.');
-  }
+  const user = await loadUser(userId);
+  const person = await assertMayActOn(
+    actor,
+    user,
+    'No puede restablecer la contraseña de este usuario.',
+  );
 
   // Hashing is slow on purpose: do it before the transaction, which may be retried.
   const passwordHash = await defaultPasswordHash(person);
@@ -145,6 +187,87 @@ export async function changeOwnPassword(
         entity: 'user',
         entityId: user._id,
         summary: 'Cambió su contraseña.',
+      },
+      session,
+    );
+  });
+}
+
+/**
+ * "Desbloquear" (plan 4.3): clears a progressive lockout without touching the password. Unlike a
+ * password reset, this does not revoke sessions: a lockout only blocks new logins, so any session
+ * the user already had is unaffected. Same rank and scope rules as `resetPasswordToDefault`.
+ */
+export async function unlockUser(actor: Actor, userId: string): Promise<void> {
+  const user = await loadUser(userId);
+  await assertMayActOn(actor, user, 'No puede desbloquear a este usuario.');
+
+  await mongoose.connection.transaction(async (session) => {
+    await UserModel.updateOne(
+      { _id: user._id },
+      { failedAttempts: 0, lockUntil: null },
+      { session },
+    );
+    await audit(
+      actor,
+      {
+        action: 'user.unlocked',
+        entity: 'user',
+        entityId: user._id,
+        summary: `Desbloqueó la cuenta de ${user.username}.`,
+      },
+      session,
+    );
+  });
+}
+
+/**
+ * `PATCH /api/users/:id` (plan 4.3): activates/deactivates a user and/or sets a recinto
+ * coordinator's `recintoScopes`. Restricted to `users.manage` (superadmin, general coordinator),
+ * both of whom see every user, so unlike `unlockUser` this only needs the rank check, not scope.
+ */
+export async function updateUser(
+  actor: Actor,
+  userId: string,
+  patch: UpdateUserRequest,
+): Promise<void> {
+  const user = await loadUser(userId);
+  if (!outranks(actor.user.role, user.role)) {
+    throw new AppError(403, 'FORBIDDEN', 'No puede modificar este usuario.');
+  }
+  if (patch.recintoScopes !== undefined && user.role !== 'recinto_coordinator') {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Los datos enviados no son válidos.', {
+      'body.recintoScopes': ['Solo un coordinador de recinto tiene recintos asignados.'],
+    });
+  }
+  if (patch.recintoScopes !== undefined) {
+    await assertKnownRecintos(patch.recintoScopes, 'body.recintoScopes');
+  }
+
+  const changes: Partial<Pick<User, 'isActive' | 'recintoScopes'>> = {};
+  const summaryParts: string[] = [];
+  if (patch.isActive !== undefined) {
+    changes.isActive = patch.isActive;
+    summaryParts.push(
+      patch.isActive
+        ? `Activó la cuenta de ${user.username}.`
+        : `Desactivó la cuenta de ${user.username}.`,
+    );
+  }
+  if (patch.recintoScopes !== undefined) {
+    changes.recintoScopes = patch.recintoScopes;
+    summaryParts.push(`Actualizó los recintos asignados a ${user.username}.`);
+  }
+
+  await mongoose.connection.transaction(async (session) => {
+    await UserModel.updateOne({ _id: user._id }, changes, { session });
+    await audit(
+      actor,
+      {
+        action: 'user.updated',
+        entity: 'user',
+        entityId: user._id,
+        summary: summaryParts.join(' '),
       },
       session,
     );

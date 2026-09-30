@@ -57,10 +57,18 @@ export const meResponseSchema = z.object({
   role: roleSchema,
   /** What the role may do (`ROLE_PERMISSIONS`): drives the navigation and what the UI offers. */
   permissions: z.array(permissionSchema),
+  /** recintoKeys a recinto_coordinator covers; empty for every other role. Plan 7.1's `/mi-recinto`
+   * uses it to know which recinto(s) the caller may pick from. */
+  recintoScopes: z.array(z.string()),
   /** The web page the role starts on (`/inicio` redirects there). */
   landing: z.string().startsWith('/'),
   /** True while the password is still the default (birth date): the UI keeps prompting to change it. */
   usingDefaultPassword: z.boolean(),
+  /** True exactly once, on the first `/me` after this session's role changed underneath it (plan
+   * 6.1/6.2's auto-promotion or a manual promote/demote): the server clears it as it reports it, so
+   * the UI shows the celebration/notice on this one response and never repeats it. `role`/
+   * `permissions`/`landing` above are already current either way. */
+  permissionsStale: z.boolean(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
 

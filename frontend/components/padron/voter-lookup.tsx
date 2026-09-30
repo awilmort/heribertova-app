@@ -6,7 +6,6 @@ import {
   hasValidCheckDigit,
   isCedula,
   type VoterCard,
-  type VoterMembership,
 } from '@heribertova/shared';
 import { useMutation } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -14,6 +13,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { MembershipBadge } from '@/components/voters/membership-badge';
 import { api, ApiError } from '@/lib/api';
 import { messages } from '@/messages/es';
 
@@ -124,24 +124,5 @@ function Row({ label, value }: { label: string; value: string }) {
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="font-medium">{value}</dd>
     </>
-  );
-}
-
-function MembershipBadge({ membership }: { membership: VoterMembership }) {
-  const label =
-    membership.status === 'member'
-      ? `${text.membership.member} · ${messages.levels[membership.level]}`
-      : text.membership[membership.status];
-  const registered = membership.status !== 'none';
-  return (
-    <p
-      className={
-        registered
-          ? 'w-fit rounded-full bg-primary px-3 py-1 text-sm text-primary-foreground'
-          : 'w-fit rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground'
-      }
-    >
-      {label}
-    </p>
   );
 }

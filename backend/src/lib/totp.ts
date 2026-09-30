@@ -41,6 +41,15 @@ export function totpUri(secret: string, label: string): string {
 }
 
 /**
+ * The current 6-digit code for `secret` at `timestampMs`, i.e. what an authenticator app would
+ * show right now. The interactive enrollment (`superadminCli.ts`) asks the operator to type this
+ * from their app instead; `seedSuperadmin.ts` (dev-only) has no operator, so it computes it directly.
+ */
+export function currentTotpCode(secret: string, timestampMs: number): string {
+  return totpFor(secret, 'verify').generate({ timestamp: timestampMs });
+}
+
+/**
  * The time step (30-second counter since the Unix epoch) whose code `code` is, within one step of
  * `timestampMs`; null when it matches none. Callers accept each step at most once (replay).
  */

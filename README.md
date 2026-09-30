@@ -1,7 +1,7 @@
 # Heriberto
 
 Campaign app for the Higüey mayoral campaign: a Next.js frontend (`frontend/`), an Express API
-(`backend/`) and the contracts they share (`shared/`), in one pnpm workspace.
+(`backend/`) and the contracts they share (`shared/`), in one npm workspace.
 
 Start with `HERIBERTO_ARCHITECTURE.md` (design) and `HERIBERTO_IMPLEMENTATION_PLAN.md` (phases).
 Engineering rules are in `AGENTS.md`.
@@ -11,16 +11,39 @@ Engineering rules are in `AGENTS.md`.
 Prerequisites: Node 22 (`.nvmrc`) and Docker. No cloud account is needed for development.
 
 ```sh
-corepack enable                                    # pnpm at the version pinned in package.json
-pnpm install                                       # also installs the git pre-commit hook
+npm install                                        # also installs the git pre-commit hook
 cp backend/.env.example backend/.env && cp frontend/.env.example frontend/.env.local
-pnpm dev:up                                        # MongoDB + S3 emulator + local buckets
-pnpm dev                                           # API on :4000, web app on :3000
+npm run dev:up                                     # MongoDB + S3 emulator + local buckets
+npm run dev                                        # API on :4000, web app on :3000
 ```
 
 Open http://localhost:3000. The home page shows the API status; http://localhost:3000/api/health
-should report `{"status":"ok","mongo":"up","s3":"up"}`. `pnpm dev:down` stops the services
+should report `{"status":"ok","mongo":"up","s3":"up"}`. `npm run dev:down` stops the services
 (data is kept in Docker volumes).
+
+**A user to log in with.** The database starts empty: no public registration exists, and normally
+only a voter's cédula can be registered. For manual testing:
+
+```sh
+npm run superadmin:seed      # a working superadmin, no padrón import needed
+npm run voters:seed          # 20 synthetic voters, generated and imported in one go
+```
+
+`superadmin:seed` logs in with cédula `00100000001` and password `DevSuperadmin2024!` (override
+with `npm run superadmin:seed --workspace=backend -- --cedula <11 digits> --password <text>`). It
+fabricates its own voter record, so it needs nothing else first. It still enrolls TOTP for real
+(superadmin login always requires it) and prints a QR code in the terminal to scan with an
+authenticator app. Refuses outside `NODE_ENV=development`, and refuses if a superadmin already
+exists (there is only ever one — drop the database, or `docker compose -f docker-compose.dev.yml
+down -v`, to start over).
+
+`voters:seed` is for testing flows that need actual padrón data (`/padron` lookup, registering a
+member, other roles). It just chains `voters:fake` and `voters:import --apply` with fixed defaults;
+reach for those two individually (both need `--workspace=backend`, see the script table below) if
+you want a different voter count or a custom file.
+
+The real superadmin flow (`superadmin:create`, below) is what production uses: it ties the account
+to an actual imported voter and makes the operator confirm a live TOTP code.
 
 **Logging in locally.** The session cookie is `__Host-sid` (`Secure`, `HttpOnly`, `SameSite=Lax`).
 Browsers accept `Secure` cookies from `http://localhost`, so it works over plain http as long as
@@ -38,15 +61,24 @@ Run from the repository root.
 
 | Script | What it does |
 | --- | --- |
-| `pnpm dev:up` / `pnpm dev:down` | Start / stop local MongoDB (replica set) and the S3 emulator; `dev:up` also creates the `media`, `backups` and `imports` buckets (console: http://localhost:9001) |
-| `pnpm dev` | Run the API and the web app in watch mode |
-| `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm build` | The CI gates; all must pass before a PR merges |
-| `pnpm format` | Format with Prettier |
-| `pnpm --filter backend s3:check` | Put, get and delete a test object in the media and imports buckets of the configured S3 |
-| `pnpm --filter backend voters:fake --out tmp/voters-20k.json [--voters 20000]` | Write a synthetic Higüey voter file in the real export's shape (`tmp/` is gitignored; 181551 voters = real size) |
-| `pnpm --filter backend voters:import --file <path> --dry-run` | Validate a voter file and print its report (accepted, rejected, check-digit warnings, recintos, colegios, sectors, diff); writes nothing |
-| `pnpm --filter backend voters:import --file <path> --cut <label> [--apply]` | Stage the file (report only), or with `--apply` stage and apply it to `voters`/`recintos`. The same file (SHA-256) is never imported twice |
-| `pnpm --filter backend superadmin:create` | Create the one superadmin (the owner): asks for the cédula (must be in the imported padrón), phone, a password of at least 14 characters, and enrolls TOTP (terminal QR + otpauth URI). Refuses if a superadmin exists. Built as `dist/scripts/create-superadmin.js` for production |
+| `npm run dev:up` / `npm run dev:down` | Start / stop local MongoDB (replica set) and the S3 emulator; `dev:up` also creates the `media`, `backups` and `imports` buckets (console: http://localhost:9001) |
+| `npm run dev` | Run the API and the web app in watch mode |
+| `npm run lint` · `npm run typecheck` · `npm test` · `npm run build` | The CI gates; all must pass before a PR merges |
+| `npm run format` | Format with Prettier |
+| `npm run voters:seed` | **Dev only.** Generate 20 synthetic voters and import them, in one step (fixed `--cut dev`) |
+| `npm run superadmin:seed` | **Dev only.** Create the superadmin from a fixed cédula and password (defaults `00100000001` / `DevSuperadmin2024!`, overridable via `--workspace=backend -- --cedula ... --password ...`), with no padrón import needed. Still enrolls real TOTP (prints a QR). Refuses outside `NODE_ENV=development` or if a superadmin exists |
+| `npm run superadmin:create` | The real flow (used in production too). Create the one superadmin (the owner): asks for the cédula (must be in the imported padrón), phone, a password of at least 14 characters, and enrolls TOTP (terminal QR + otpauth URI, confirmed live). Refuses if a superadmin exists. Built as `dist/scripts/create-superadmin.js` for production |
+| `npm run s3:check` | Put, get and delete a test object in the media and imports buckets of the configured S3 |
+
+Anything more specific than the above (a custom voter count, a dry run, a particular file) goes
+through the backend package directly, which needs `--workspace=backend` and, for extra flags, a
+`--` before them (otherwise npm treats `--out`/`--file`/etc. as its own flags):
+
+| Script | What it does |
+| --- | --- |
+| `npm run voters:fake --workspace=backend -- --out <path> [--voters 20]` | Write a synthetic Higüey voter file in the real export's shape (`tmp/` is gitignored; 20 voters by default, 181551 = real size) |
+| `npm run voters:import --workspace=backend -- --file <path> --dry-run` | Validate a voter file and print its report (accepted, rejected, check-digit warnings, recintos, colegios, sectors, diff); writes nothing |
+| `npm run voters:import --workspace=backend -- --file <path> --cut <label> [--apply]` | Stage the file (report only), or with `--apply` stage and apply it to `voters`/`recintos`. The same file (SHA-256) is never imported twice |
 
 ## Git
 

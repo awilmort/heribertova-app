@@ -1,14 +1,23 @@
 import { request } from '../../../test/http';
-import { apiErrorBodySchema, type Role } from '@heribertova/shared';
+import {
+  apiErrorBodySchema,
+  userListResponseSchema,
+  type AppointUserRequest,
+  type Role,
+} from '@heribertova/shared';
 import { Types } from 'mongoose';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp, login, sameOriginHeaders, sessionCookie } from '../../../test/app';
 import { useTestDatabase } from '../../../test/database';
+import { importFakePadron } from '../../../test/padron';
 import { createTestLogin, createTestPerson, createTestUser } from '../../../test/users';
 import { AuditLogModel } from '../audit/model';
 import type { Person } from '../people/model';
+import { RecintoModel } from '../recintos/model';
 import { SessionModel } from '../sessions/model';
 import { createSession, resolveSession } from '../sessions/service';
+import type { RawVoterRecord } from '../voters/voterFile';
+import { VoterModel, type Voter } from '../voters/model';
 import { UserModel, type UserDocument } from './model';
 
 useTestDatabase();
@@ -283,5 +292,371 @@ describe('POST /api/users/:id/reset-password', () => {
       .set('Cookie', sessionCookie(token));
     expectError(res, 403, 'FORBIDDEN');
     await expect(AuditLogModel.countDocuments()).resolves.toBe(0);
+  });
+});
+
+describe('POST /api/users/:id/unlock', () => {
+  function unlock(token: string | null, userId: string) {
+    const req = request(app).post(`/api/users/${userId}/unlock`).set(sameOriginHeaders);
+    return token ? req.set('Cookie', sessionCookie(token)) : req;
+  }
+
+  async function lockedTarget(role: Role, recintoKey = OTHER_RECINTO) {
+    const user = await target(role, { recintoKey });
+    await UserModel.updateOne(
+      { _id: user._id },
+      { failedAttempts: 10, lockUntil: new Date(Date.now() + 60 * 60 * 1000) },
+    );
+    return user;
+  }
+
+  it('clears the lockout without touching the password', async () => {
+    const { token } = await caller('general_coordinator');
+    const user = await lockedTarget('aspiring_leader');
+
+    expect((await login(app, user.username, FORGOTTEN_PASSWORD)).status).toBe(401);
+    expect((await unlock(token, user.id)).status).toBe(204);
+
+    const stored = await UserModel.findById(user._id).lean();
+    expect(stored).toMatchObject({ failedAttempts: 0, lockUntil: null });
+    expect((await login(app, user.username, FORGOTTEN_PASSWORD)).status).toBe(204);
+    expect(stored?.passwordHash).toBe(user.passwordHash);
+  });
+
+  it('records the unlock in the audit log, with the cédula masked', async () => {
+    const { user: coordinator, token } = await caller('general_coordinator');
+    const user = await lockedTarget('team_leader');
+
+    await unlock(token, user.id);
+
+    const entries = await AuditLogModel.find().lean();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      actorUserId: coordinator._id,
+      action: 'user.unlocked',
+      entity: 'user',
+      entityId: user._id,
+    });
+    const masked = `${user.username.slice(0, 3)}-*******-${user.username.slice(-1)}`;
+    expect(entries[0]?.summary).toBe(`Desbloqueó la cuenta de ${masked}.`);
+  });
+
+  describe('scope', () => {
+    it('lets a recinto coordinator unlock a leader who votes in one of their recintos', async () => {
+      const { token } = await caller('recinto_coordinator', [RECINTO]);
+      const user = await lockedTarget('team_leader', RECINTO);
+      expect((await unlock(token, user.id)).status).toBe(204);
+    });
+
+    it('refuses a recinto coordinator a leader out of their scope', async () => {
+      const { token } = await caller('recinto_coordinator', [RECINTO]);
+      const user = await lockedTarget('team_leader', OTHER_RECINTO);
+      expectError(await unlock(token, user.id), 403, 'FORBIDDEN', NOT_IN_SCOPE);
+      const stored = await UserModel.findById(user._id).lean();
+      expect(stored?.lockUntil).not.toBeNull();
+    });
+  });
+
+  describe('rank', () => {
+    it('never lets a general coordinator unlock the superadmin', async () => {
+      const { token } = await caller('general_coordinator');
+      const superadmin = await createTestUser({ role: 'superadmin' });
+      await UserModel.updateOne(
+        { _id: superadmin._id },
+        { failedAttempts: 10, lockUntil: new Date(Date.now() + 60 * 60 * 1000) },
+      );
+      expectError(
+        await unlock(token, superadmin.id),
+        403,
+        'FORBIDDEN',
+        'No puede desbloquear a este usuario.',
+      );
+    });
+  });
+
+  it('answers 404 for an unknown user', async () => {
+    const { token } = await caller('general_coordinator');
+    expectError(
+      await unlock(token, new Types.ObjectId().toHexString()),
+      404,
+      'NOT_FOUND',
+      'No encontramos ese usuario.',
+    );
+  });
+
+  it('requires a session', async () => {
+    const user = await lockedTarget('team_leader');
+    expectError(await unlock(null, user.id), 401, 'UNAUTHENTICATED');
+  });
+});
+
+describe('PATCH /api/users/:id', () => {
+  function patch(token: string | null, userId: string, body: object) {
+    const req = request(app).patch(`/api/users/${userId}`).set(sameOriginHeaders).send(body);
+    return token ? req.set('Cookie', sessionCookie(token)) : req;
+  }
+
+  it('deactivates and reactivates a user', async () => {
+    const { token } = await caller('superadmin');
+    const user = await target('team_leader');
+
+    expect((await patch(token, user.id, { isActive: false })).status).toBe(204);
+    await expect(UserModel.findById(user._id).lean()).resolves.toMatchObject({ isActive: false });
+
+    expect((await patch(token, user.id, { isActive: true })).status).toBe(204);
+    await expect(UserModel.findById(user._id).lean()).resolves.toMatchObject({ isActive: true });
+  });
+
+  it("sets a recinto coordinator's recintoScopes to recintos that exist", async () => {
+    const { token } = await caller('superadmin');
+    const user = await target('recinto_coordinator');
+    await RecintoModel.create({
+      _id: RECINTO,
+      name: 'LICEO JUAN PABLO DUARTE',
+      sector: 'CENTRO CIUDAD',
+      colegios: [1],
+      voterCount: 1,
+    });
+
+    expect((await patch(token, user.id, { recintoScopes: [RECINTO] })).status).toBe(204);
+    await expect(UserModel.findById(user._id).lean()).resolves.toMatchObject({
+      recintoScopes: [RECINTO],
+    });
+  });
+
+  it('rejects recintoScopes for a role that is not a recinto coordinator', async () => {
+    const { token } = await caller('superadmin');
+    const user = await target('team_leader');
+    const res = await patch(token, user.id, { recintoScopes: [] });
+    expectError(res, 400, 'VALIDATION_ERROR');
+  });
+
+  it('rejects a recinto that does not exist', async () => {
+    const { token } = await caller('superadmin');
+    const user = await target('recinto_coordinator');
+    const res = await patch(token, user.id, { recintoScopes: ['no-existe--sector'] });
+    expectError(res, 400, 'VALIDATION_ERROR');
+    expect(apiErrorBodySchema.parse(res.body).error.fields).toEqual({
+      'body.recintoScopes': ['Hay un recinto que no existe.'],
+    });
+  });
+
+  it('rejects an empty body', async () => {
+    const { token } = await caller('superadmin');
+    const user = await target('team_leader');
+    expectError(await patch(token, user.id, {}), 400, 'VALIDATION_ERROR');
+  });
+
+  it('records the change in the audit log, with the cédula masked', async () => {
+    const { user: admin, token } = await caller('superadmin');
+    const user = await target('team_leader');
+
+    await patch(token, user.id, { isActive: false });
+
+    const entries = await AuditLogModel.find().lean();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      actorUserId: admin._id,
+      action: 'user.updated',
+      entity: 'user',
+      entityId: user._id,
+    });
+    const masked = `${user.username.slice(0, 3)}-*******-${user.username.slice(-1)}`;
+    expect(entries[0]?.summary).toBe(`Desactivó la cuenta de ${masked}.`);
+  });
+
+  describe('rank', () => {
+    it('never lets a general coordinator modify the superadmin', async () => {
+      const { token } = await caller('general_coordinator');
+      const superadmin = await createTestUser({ role: 'superadmin' });
+      expectError(
+        await patch(token, superadmin.id, { isActive: false }),
+        403,
+        'FORBIDDEN',
+        'No puede modificar este usuario.',
+      );
+      await expect(UserModel.findById(superadmin._id).lean()).resolves.toMatchObject({
+        isActive: true,
+      });
+    });
+  });
+
+  it('answers 404 for an unknown user', async () => {
+    const { token } = await caller('superadmin');
+    expectError(
+      await patch(token, new Types.ObjectId().toHexString(), { isActive: false }),
+      404,
+      'NOT_FOUND',
+    );
+  });
+
+  it('requires users.manage: a recinto coordinator cannot activate/deactivate', async () => {
+    const { token } = await caller('recinto_coordinator', [RECINTO]);
+    const user = await target('team_leader');
+    expectError(await patch(token, user.id, { isActive: false }), 403, 'FORBIDDEN');
+  });
+
+  it('requires a session', async () => {
+    const user = await target('team_leader');
+    expectError(await patch(null, user.id, { isActive: false }), 401, 'UNAUTHENTICATED');
+  });
+});
+
+describe('GET /api/users', () => {
+  function list(token: string, query = '') {
+    return request(app).get(`/api/users${query}`).set('Cookie', sessionCookie(token));
+  }
+
+  it('lists users, joined with their person for display', async () => {
+    const { token } = await caller('superadmin');
+    const user = await target('team_leader');
+
+    const res = await list(token);
+
+    expect(res.status).toBe(200);
+    const { items } = userListResponseSchema.parse(res.body);
+    const row = items.find((item) => item.id === user.id);
+    expect(row).toMatchObject({
+      username: user.username,
+      role: 'team_leader',
+      isActive: true,
+      usingDefaultPassword: false,
+      locked: false,
+      person: { fullName: 'MARÍA RODRÍGUEZ' },
+    });
+  });
+
+  it('filters by role', async () => {
+    const { token } = await caller('superadmin');
+    await target('team_leader');
+    await target('recinto_coordinator');
+
+    const { items } = userListResponseSchema.parse(
+      (await list(token, '?role=recinto_coordinator')).body,
+    );
+    expect(items.every((item) => item.role === 'recinto_coordinator')).toBe(true);
+  });
+
+  it('filters by active state', async () => {
+    const { token } = await caller('superadmin');
+    const inactive = await target('team_leader');
+    await UserModel.updateOne({ _id: inactive._id }, { isActive: false });
+
+    const { items } = userListResponseSchema.parse((await list(token, '?isActive=false')).body);
+    expect(items.map((item) => item.id)).toContain(inactive.id);
+    expect(items.every((item) => !item.isActive)).toBe(true);
+  });
+
+  it('filters by whether the password is still the default', async () => {
+    const { token } = await caller('superadmin');
+    const usingDefault = await target('team_leader');
+    await UserModel.updateOne({ _id: usingDefault._id }, { usingDefaultPassword: true });
+
+    const { items } = userListResponseSchema.parse(
+      (await list(token, '?usingDefaultPassword=true')).body,
+    );
+    expect(items.map((item) => item.id)).toContain(usingDefault.id);
+    expect(items.every((item) => item.usingDefaultPassword)).toBe(true);
+  });
+
+  it('requires users.manage: a recinto coordinator cannot list users', async () => {
+    const { token } = await caller('recinto_coordinator', [RECINTO]);
+    expectError(await list(token), 403, 'FORBIDDEN');
+  });
+});
+
+describe('POST /api/users', () => {
+  let records: RawVoterRecord[];
+
+  beforeEach(async () => {
+    records = await importFakePadron(50);
+  });
+
+  async function voterAt(index: number): Promise<Voter> {
+    const voter = await VoterModel.findById(records[index]?.cedula).lean();
+    if (!voter) throw new Error(`No voter at ${index}`);
+    return voter;
+  }
+
+  function appoint(token: string | null, body: Partial<AppointUserRequest>) {
+    const req = request(app).post('/api/users').set(sameOriginHeaders).send(body);
+    return token ? req.set('Cookie', sessionCookie(token)) : req;
+  }
+
+  function requestFor(cedula: string, overrides: Partial<AppointUserRequest> = {}) {
+    return {
+      cedula,
+      role: 'recinto_coordinator' as const,
+      recintoScopes: [] as string[],
+      phone: '8095551234',
+      phoneWhatsapp: true,
+      ...overrides,
+    };
+  }
+
+  it('appoints a recinto coordinator who can then log in with the birth date', async () => {
+    const { token } = await caller('superadmin');
+    const voter = await voterAt(0);
+
+    const res = await appoint(token, requestFor(voter._id, { recintoScopes: [voter.recintoKey] }));
+
+    expect(res.status).toBe(201);
+    expect((res.body as { id: string }).id).toEqual(expect.any(String));
+    const created = await UserModel.findOne({ username: voter._id }).lean();
+    expect(created).toMatchObject({ role: 'recinto_coordinator', usingDefaultPassword: true });
+  });
+
+  it('answers 404 for a cédula not in the padrón', async () => {
+    const { token } = await caller('superadmin');
+    const res = await appoint(
+      token,
+      requestFor('99999999999', { role: 'general_coordinator', recintoScopes: [] }),
+    );
+    expectError(res, 404, 'NOT_FOUND', 'Esta cédula no figura en el padrón de Higüey.');
+  });
+
+  it('validates the body', async () => {
+    const { token } = await caller('superadmin');
+    const res = await appoint(token, {});
+    expectError(res, 400, 'VALIDATION_ERROR');
+  });
+
+  it('requires a recinto for a recinto coordinator', async () => {
+    const { token } = await caller('superadmin');
+    const voter = await voterAt(1);
+    const res = await appoint(
+      token,
+      requestFor(voter._id, { role: 'recinto_coordinator', recintoScopes: [] }),
+    );
+    expectError(res, 400, 'VALIDATION_ERROR');
+  });
+
+  it('never lets a general coordinator appoint another general coordinator', async () => {
+    const { token } = await caller('general_coordinator');
+    const voter = await voterAt(2);
+    const res = await appoint(
+      token,
+      requestFor(voter._id, { role: 'general_coordinator', recintoScopes: [] }),
+    );
+    expectError(res, 403, 'FORBIDDEN', 'No puede nombrar este rol.');
+  });
+
+  it('requires users.manage: a recinto coordinator cannot appoint anyone', async () => {
+    const { token } = await caller('recinto_coordinator', [RECINTO]);
+    const voter = await voterAt(3);
+    const res = await appoint(
+      token,
+      requestFor(voter._id, { role: 'recinto_coordinator', recintoScopes: [voter.recintoKey] }),
+    );
+    expectError(res, 403, 'FORBIDDEN');
+  });
+
+  it('requires a session', async () => {
+    const voter = await voterAt(4);
+    expectError(
+      await appoint(null, requestFor(voter._id, { recintoScopes: [voter.recintoKey] })),
+      401,
+      'UNAUTHENTICATED',
+    );
   });
 });

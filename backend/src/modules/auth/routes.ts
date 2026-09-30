@@ -7,6 +7,9 @@ import {
 } from '@heribertova/shared';
 import type { Request, Response } from 'express';
 import { AppError } from '../../lib/errors';
+import { decryptSecret } from '../../lib/secretBox';
+import { matchTotpStep } from '../../lib/totp';
+import { currentUser } from '../../middleware/requireAuth';
 import { loginRateLimit, totpRateLimit } from '../../middleware/rateLimit';
 import { validate } from '../../middleware/validate';
 import type { ApiRoute } from '../../routing/apiRoute';
@@ -18,10 +21,10 @@ import {
   setSessionCookie,
   setTotpChallengeCookie,
 } from '../sessions/cookie';
-import { createSession, deleteSession } from '../sessions/service';
+import { createSession, deleteSession, markTotpVerified } from '../sessions/service';
 import type { UserDocument } from '../users/model';
-import { authenticate, completeLogin } from './service';
-import { requiresTotp, startTotpChallenge, verifyTotpChallenge } from './totp';
+import { authenticate, completeLogin, isLocked, registerFailedAttempt } from './service';
+import { claimTotpStep, requiresTotp, startTotpChallenge, verifyTotpChallenge } from './totp';
 import type { TurnstileVerifier } from './turnstile';
 
 export interface AuthRoutesOptions {
@@ -144,6 +147,44 @@ export function createAuthRoutes({
           const token = readSessionToken(req);
           if (token) await deleteSession(token);
           clearSessionCookie(res);
+          res.status(204).end();
+        },
+      ],
+    },
+    {
+      // The step-up gate for a sensitive action on an already-open session (plan 9.1's voter-file
+      // upload): unlike /auth/totp/verify, there is no challenge cookie here, since the caller is
+      // already logged in — a fresh code against the account's own secret is all this checks.
+      method: 'post',
+      path: '/auth/totp/reverify',
+      access: 'authenticated',
+      handlers: [
+        validate({ body: totpVerifyRequestSchema }),
+        totpRateLimit(loginRateLimitMax),
+        async (req, res) => {
+          const user = currentUser(req);
+          const now = new Date();
+          if (!user.totpSecretEnc || isLocked(user, now)) {
+            throw new AppError(403, 'FORBIDDEN', 'No puede verificar el código en este momento.');
+          }
+
+          const step = matchTotpStep(
+            decryptSecret(totpKey, user.totpSecretEnc),
+            (req.body as TotpVerifyRequest).code,
+            now.getTime(),
+          );
+          if (step === null || !(await claimTotpStep(user._id, step))) {
+            await registerFailedAttempt(user, now);
+            req.log.warn({ userId: user.id }, 'TOTP re-verification failed');
+            throw new AppError(
+              401,
+              'INVALID_TOTP_CODE',
+              'El código no es válido. Escriba el código que muestra ahora su aplicación.',
+            );
+          }
+
+          const token = readSessionToken(req);
+          if (token) await markTotpVerified(token);
           res.status(204).end();
         },
       ],

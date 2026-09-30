@@ -22,8 +22,10 @@ const me: MeResponse = {
   },
   role: 'team_leader',
   permissions: [],
+  recintoScopes: [],
   landing: '/panel',
   usingDefaultPassword: false,
+  permissionsStale: false,
 };
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -46,7 +48,12 @@ function respond(status: number, body: unknown) {
 }
 
 function renderShell() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // staleTime matches Providers' real default: without it, a `['me']` observer that mounts later
+  // (NavLinks, deeper in the success branch) treats the just-fetched data as stale and refetches in
+  // the background, which this file's single-shot `fetchMock` doesn't expect.
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+  });
   render(
     <QueryClientProvider client={client}>
       <AuthenticatedShell>
@@ -94,5 +101,24 @@ describe('AuthenticatedShell', () => {
 
     expect(await screen.findByRole('button', { name: messages.errors.retry })).toBeDefined();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it('shows the promotion celebration when /me reports permissionsStale', async () => {
+    respond(200, { ...me, permissionsStale: true });
+    renderShell();
+
+    expect(
+      await screen.findByRole('heading', { name: messages.panel.celebration.promotedTitle }),
+    ).toBeDefined();
+  });
+
+  it('shows no celebration on an ordinary, non-stale /me response', async () => {
+    respond(200, me);
+    renderShell();
+
+    await screen.findByText('Page content');
+    expect(
+      screen.queryByRole('heading', { name: messages.panel.celebration.promotedTitle }),
+    ).toBeNull();
   });
 });

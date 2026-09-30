@@ -1,6 +1,6 @@
 import { Secret, TOTP } from 'otpauth';
 import { describe, expect, it } from 'vitest';
-import { generateTotpSecret, matchTotpStep, totpUri } from './totp';
+import { currentTotpCode, generateTotpSecret, matchTotpStep, totpUri } from './totp';
 
 /** RFC 6238 appendix B: the SHA-1 seed is the ASCII string "12345678901234567890". */
 const RFC_SECRET = Secret.fromLatin1('12345678901234567890').base32;
@@ -72,6 +72,17 @@ describe('matchTotpStep', () => {
     ]) {
       expect(matchTotpStep(secret, input, now)).toBeNull();
     }
+  });
+});
+
+describe('currentTotpCode', () => {
+  it('generates the code matchTotpStep accepts right now', () => {
+    const secret = generateTotpSecret();
+    const now = 1_790_000_000_000;
+    const generated = currentTotpCode(secret, now);
+
+    expect(generated).toMatch(/^\d{6}$/);
+    expect(matchTotpStep(secret, generated, now)).toBe(Math.floor(now / 30_000));
   });
 });
 

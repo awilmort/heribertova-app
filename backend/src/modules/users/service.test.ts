@@ -97,6 +97,14 @@ describe('createLoginForPerson', () => {
     });
   });
 
+  it('sets recintoScopes when given, for a recinto coordinator appointment (plan 4.3)', async () => {
+    const person = await personBornOn('1985-03-15');
+    const user = await createLoginForPerson(person, 'recinto_coordinator', {
+      recintoScopes: ['liceo-juan-pablo-duarte--centro-ciudad'],
+    });
+    expect(user.recintoScopes).toEqual(['liceo-juan-pablo-duarte--centro-ciudad']);
+  });
+
   it('refuses a person whose birth date is not a "YYYY-MM-DD" string', async () => {
     const person = await personBornOn('1985-03-15');
     await expect(

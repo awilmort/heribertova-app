@@ -11,6 +11,7 @@ import { requestLogger } from './middleware/requestLogger';
 import type { TurnstileVerifier } from './modules/auth/turnstile';
 import { API_PREFIX, buildApiRouter } from './routing/apiRoute';
 import { apiRoutes } from './routing/registry';
+import type { ObjectStorage } from './storage/objectStorage';
 
 export type AppConfig = Pick<
   Env,
@@ -19,6 +20,7 @@ export type AppConfig = Pick<
   | 'RATE_LIMIT_WINDOW_MS'
   | 'LOGIN_RATE_LIMIT_MAX'
   | 'VOTER_LOOKUP_DAILY_QUOTA'
+  | 'EXPORTS_DAILY_QUOTA'
   | 'APP_ORIGIN'
   | 'TOTP_ENC_KEY'
 >;
@@ -29,6 +31,12 @@ export interface AppDependencies {
   pingS3: () => Promise<boolean>;
   /** Cloudflare Turnstile check on login (index.ts: siteverify with TURNSTILE_SECRET_KEY). */
   verifyTurnstile: TurnstileVerifier;
+  /** Member photos (plan 5.2): the media bucket, behind the small interface people/photos.ts uses. */
+  objectStorage: ObjectStorage;
+  /** Voter files (plan 9.1): the imports bucket, behind the same small interface. */
+  importsObjectStorage: ObjectStorage;
+  /** The single kept database backup (plan 9.3): the backups bucket, behind the same interface. */
+  backupObjectStorage: ObjectStorage;
 }
 
 /** Builds the Express app without listening, so tests can drive it with supertest. */

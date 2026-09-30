@@ -131,7 +131,7 @@ All data services sit in AWS **us-east-1** (Atlas) and **Virginia** (Render, Ver
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Repo | One repo, pnpm workspaces: `frontend/`, `backend/`, `shared/` | `shared/` holds zod schemas, the roles/permissions map, cédula utils and settings types, used by both sides |
+| Repo | One repo, npm workspaces: `frontend/`, `backend/`, `shared/` | `shared/` holds zod schemas, the roles/permissions map, cédula utils and settings types, used by both sides |
 | Runtime | Node.js 22 LTS (or 24 LTS when Render/Vercel default to it), TypeScript `strict` | — |
 | Frontend | **Next.js 16** App Router, React 19, **Tailwind v4 + shadcn/ui** (soft-beige theme), TanStack Query, React Hook Form + zod, ECharts, `browser-image-compression` | Banana uses Next 16; we swap MUI for Tailwind/shadcn: lighter, mobile-first, easy to theme |
 | Backend | **Express 5** (native async error handling), zod validation, `helmet`, `express-rate-limit`, `cookie-parser`, `multer` (memory, small), `sharp`, `exceljs`, `stream-json` (voter import), `argon2`, `otplib` (superadmin TOTP), `pino` | Banana's stack, modernized: Express 5 instead of 4, zod instead of express-validator, argon2id instead of bcryptjs, no deprecated `csurf` |
@@ -284,7 +284,7 @@ Errors use `{ error: { code, message, fields? } }`; lists use `{ items, page, pa
 | Area | Endpoints |
 |---|---|
 | Auth | `POST /auth/login`, `POST /auth/logout`, `GET /me`, `PUT /me/password`, `POST /auth/totp/verify` (superadmin) |
-| Voters | `GET /voters/:cedula` (audited, daily quota per user), `GET /recintos/:key/voters?filter=all|nonMembers&colegio=&q=&page=` |
+| Voters | `GET /voters/:cedula` (not audited, daily quota per user), `GET /recintos/:key/voters?filter=all|nonMembers&colegio=&q=&page=` |
 | People | `POST /people/check {cedula}`, `POST /people`, `GET /people?scope=team|subtree|recinto&q=&status=&docStatus=`, `GET /people/:id`, `PATCH /people/:id`, `DELETE /people/:id` (soft) |
 | Photos | `POST /people/:id/photos/:kind` (multipart ≤ 8 MB), `GET /people/:id/photos/:kind` → 302 to a presigned S3 URL (5 min) |
 | Leadership | `POST /promotions/nominations`, `POST /promotions/:personId/promote`, `POST /promotions/:personId/demote`, `GET /leaders?level=` |
@@ -292,7 +292,7 @@ Errors use `{ error: { code, message, fields? } }`; lists use `{ items, page, pa
 | Users | `GET /users`, `POST /users` (appoint coordinator), `PATCH /users/:id` (activate, scopes), `POST /users/:id/reset-password` |
 | Dashboards | `GET /dashboards/leader`, `GET /dashboards/general` |
 | Exports | `GET /exports/people.xlsx?…`, `GET /exports/recintos.xlsx` (streamed, scoped, watermarked) |
-| Admin | `GET/PUT /settings/promotion`, `GET /audit`, `POST /internal/backup` (HMAC-signed, for GitHub Actions) |
+| Admin | `GET/PUT /settings/promotion`, `GET /audit`, `POST /backups` (superadmin, manual trigger only), `GET /backups/status` |
 | Voter import (superadmin) | `POST /imports/upload-url` (presigned S3 PUT), `POST /imports` `{s3Key, cut}` (starts streaming validation), `GET /imports/:id` (status + report), `GET /imports/:id/rejected.csv`, `POST /imports/:id/apply`, `DELETE /imports/:id` (discard staged) |
 
 ## 10. Frontend
@@ -334,10 +334,15 @@ The layout is designed for phones first (360 px), with large tap targets and pla
   - multer (memory) → check that the bytes really are JPEG/PNG/HEIC → `sharp` re-encodes to JPEG (max 1600 px, quality 80), which **removes EXIF/GPS** data.
   - The file is stored as `people/{personId}/{kind}-{uuid}.jpg` (about 150–250 KB).
   - Viewing uses 5-minute presigned GET URLs, issued only after a scope check.
-- **Backups:** M0 has no automatic backups.
-  - A GitHub Actions cron runs daily at 03:00 AST. It calls `POST /internal/backup` (signed with an HMAC secret), which also wakes a sleeping Render instance.
-  - The API streams every collection except `sessions` as gzipped NDJSON to `s3://…-backups/YYYY-MM-DD/`. An S3 lifecycle rule deletes backups older than 35 days.
-  - `backend/scripts/restore.ts` restores a chosen day.
+- **Backups:** M0 has no automatic backups, and none are scheduled here either — the owner decided a
+  single manual backup is enough for this campaign's size, not a daily cron.
+  - `POST /api/backups` (superadmin only) streams every collection except `sessions` as gzipped NDJSON
+    to `s3://…-backups/backup/`, with a manifest (counts, hashes). There is no cron, no HMAC-signed
+    endpoint and no dated history: the superadmin triggers it from `/admin/respaldos` whenever they
+    choose, and each run replaces the previous backup — exactly one is ever kept, so there is no
+    lifecycle rule to prune old ones.
+  - `GET /api/backups/status` (the same admin widget) shows the last backup's time and size.
+  - `backend/scripts/restore.ts --target-uri <uri>` restores the kept backup into a target database.
   - The restore is tested before launch.
 - **Atlas M0 budget (512 MB):** voters ≈ 60 MB including indexes (measured from the 181,551-record file; about 120 MB for a few minutes during an import while staging exists), people and users ≈ 10–30 MB, audit is capped by a 365-day TTL, and sessions are cleaned by TTL. An admin widget shows `dbStats` and warns at 80 %.
 
@@ -352,7 +357,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
   - The S3 IAM user can only touch its own bucket.
 - Secrets live only in Render/Vercel/GitHub environment variables, never in the repo. `.gitignore` covers `.env*`, key CSVs, dumps and **`padron_*.json` / `padron_*.csv`**. The real voter file (`padron_higuey_mayo2024.json`) must be moved out of the repository folder before `git init`.
 - Logs mask cédulas (`001-*****-2`), phones and emails. Session tokens are never logged.
-- Audit covers: logins (success and failure), people create/update/delete, nominations and promotions, password resets, user changes, exports, voter lookups and imports.
+- Audit covers: logins (success and failure), people create/update/delete, nominations and promotions, password resets, user changes, exports, imports and backups. Padrón lookups are not audited — too frequent and routine — but still count toward their own daily quota (§9, §12 rate limits).
 - **Privacy (Ley 172-13):** a consent checkbox is recorded at registration; data is used only for the campaign; there is a deletion path for people who ask to be removed; and data is deleted after the campaign, as decided by the owner.
 
 ## 13. Free-tier limits and when to pay
@@ -397,7 +402,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
    - **Block all public access: ON** (all four boxes)
    - Bucket Versioning: Disabled (saves cost; backups cover recovery)
    - Default encryption: **SSE-S3** (free)
-4. **Create the backups bucket.** `heribertova-backups-prod`, same settings. Then **Management → Lifecycle rule** "expire-35d": apply to all objects, **expire current versions after 35 days**.
+4. **Create the backups bucket.** `heribertova-backups-prod`, same settings. No lifecycle rule: exactly one backup is ever kept (the API deletes the previous one's objects itself before writing the next), so there is nothing for a rule to expire.
 5. **Create the imports bucket.** `heribertova-imports-prod`, same settings as the photos bucket. Then:
    - **Lifecycle rule** "expire-7d": expire current versions after **7 days**, and also delete incomplete multipart uploads after 1 day. The voter file is only needed until it is applied.
    - **Permissions → CORS** (only this bucket needs it, because the browser uploads the voter file straight to it with a presigned PUT):
@@ -423,41 +428,37 @@ The layout is designed for phones first (360 px), with large tap targets and pla
          "Action": ["s3:ListBucket"],
          "Resource": "arn:aws:s3:::heribertova-media-prod" },
        { "Effect": "Allow",
-         "Action": ["s3:PutObject"],
-         "Resource": "arn:aws:s3:::heribertova-backups-prod/*" },
-       { "Effect": "Allow",
-         "Action": ["s3:GetObject"],
-         "Resource": "arn:aws:s3:::heribertova-backups-prod/*" },
+         "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket"],
+         "Resource": ["arn:aws:s3:::heribertova-backups-prod", "arn:aws:s3:::heribertova-backups-prod/*"] },
        { "Effect": "Allow",
          "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
          "Resource": "arn:aws:s3:::heribertova-imports-prod/*" }
      ]
    }
    ```
-   `s3:ListBucket` on the media bucket (the bucket ARN, not `/*`) is what `HeadBucket` needs: `GET /health` uses it to report S3 as up. The API signs the browser's PUT URL for the imports bucket with its own credentials, so it needs `PutObject` there, plus `GetObject` to stream the file and `DeleteObject` to discard it. `GetObject` on backups is only needed by the restore script. Remove it from the API user and give it to a separate `heribertova-restore` user if you prefer.
+   `s3:ListBucket` on the media bucket (the bucket ARN, not `/*`) is what `HeadBucket` needs: `GET /health` uses it to report S3 as up. The API signs the browser's PUT URL for the imports bucket with its own credentials, so it needs `PutObject` there, plus `GetObject` to stream the file and `DeleteObject` to discard it. On the backups bucket the API needs `ListBucket` too (to find the previous backup's objects before deleting them, since only one is ever kept) plus `GetObject` for `restore.ts` and the status widget's manifest read.
 7. **IAM user.** IAM → Users → Create `heribertova-api-prod`: **no console access**, attach the policy above. Then Security credentials → **Create access key** → use case "Application running outside AWS" → copy the key id and secret **once**.
 8. **Render environment variables:** `AWS_REGION=us-east-1`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_MEDIA_BUCKET=heribertova-media-prod`, `S3_BACKUP_BUCKET=heribertova-backups-prod`, `S3_IMPORTS_BUCKET=heribertova-imports-prod`. Leave `S3_ENDPOINT` unset and `S3_FORCE_PATH_STYLE=false` (those two only point the SDK at the local emulator). Never commit the key CSV AWS offers to download; don't keep it in the project folder either.
-9. **Verify** with `pnpm --filter backend s3:check`, which puts, gets and deletes a test object (the same script is used against the local emulator in Phase 1.4).
+9. **Verify** with `npm run s3:check --workspace=backend`, which puts, gets and deletes a test object (the same script is used against the local emulator in Phase 1.4).
 10. Rotate access keys every 90 days (create new → update Render → delete old).
 
 ### A.3 Render (API)
 1. render.com → sign in with GitHub → **New → Web Service** → pick the repo.
 2. Name `heribertova-api`, region **Virginia (US East)**, branch `main`, **Root Directory** `backend`, runtime Node.
-3. Build command `corepack enable && pnpm install --frozen-lockfile && pnpm build`; start command `node dist/index.js`.
+3. Build command `npm ci && npm run build`; start command `node dist/index.js`.
 4. Instance type **Free** for now (Starter at launch, see §13). **Health Check Path** `/health`.
 5. Environment variables:
    - `NODE_ENV=production`
    - `MONGODB_URI`
    - AWS vars (A.2)
    - `TURNSTILE_SECRET_KEY`
-   - `BACKUP_HMAC_SECRET`
    - `TOTP_ENC_KEY`
    - `APP_ORIGIN=https://heribertova.do` (the only `Origin` the CSRF guard accepts)
    - optionally `LOGIN_RATE_LIMIT_MAX` (default 10 failed logins per IP + cédula per 15 min)
 
    No session pepper: session tokens are 256 random bits, so their plain SHA-256 is already unguessable (plan 3.1).
 6. Optional custom domain `api.heribertova.do` (CNAME to the `onrender.com` host). The browser does not need it, because traffic goes through Vercel rewrites.
-7. Create the superadmin once from the Render **Shell**: `node dist/scripts/create-superadmin.js`. The owner must be in the padrón, so import it first with the CLI (`voters:import --apply`; the import screen itself needs the superadmin). The script prompts for the cédula and phone, forces a strong password (≥ 14 characters, not the birth date), prints the TOTP QR/URI/secret and asks for a code from the app before creating anything. On the Free plan the Shell is unavailable, so run `pnpm --filter backend superadmin:create` locally once with the prod `MONGODB_URI` **and the same `TOTP_ENC_KEY` as Render**.
+7. Create the superadmin once from the Render **Shell**: `node dist/scripts/create-superadmin.js`. The owner must be in the padrón, so import it first with the CLI (`voters:import --apply`; the import screen itself needs the superadmin). The script prompts for the cédula and phone, forces a strong password (≥ 14 characters, not the birth date), prints the TOTP QR/URI/secret and asks for a code from the app before creating anything. On the Free plan the Shell is unavailable, so run `npm run superadmin:create --workspace=backend` locally once with the prod `MONGODB_URI` **and the same `TOTP_ENC_KEY` as Render**.
 
 ### A.4 Vercel (web)
 1. vercel.com → sign in with GitHub → **Add New Project** → import the repo, **Root Directory** `frontend`, framework Next.js.
@@ -479,8 +480,7 @@ dash.cloudflare.com (free account) → **Turnstile → Add widget**: name `herib
 ### A.7 GitHub
 - Repo **private**.
 - Branch protection on `main` (PR + green CI).
-- Secrets: `BACKUP_URL=https://heribertova.do/api/internal/backup`, `BACKUP_HMAC_SECRET`.
-- Workflows: `ci.yml` (on PR) and `backup.yml` (`schedule: cron '0 7 * * *'` = 03:00 AST, plus `workflow_dispatch`).
+- Workflows: `ci.yml` (on PR). No backup workflow: backups are a manual, in-app action (`POST /api/backups`, §11), not a scheduled GitHub Actions job.
 - Enable Dependabot security updates and secret scanning.
 
 ### A.8 UptimeRobot (optional, free)

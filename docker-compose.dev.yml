@@ -1,5 +1,5 @@
 # Local development services. Production uses MongoDB Atlas and AWS S3 (see HERIBERTO_ARCHITECTURE.md Appendix A).
-# Start with `pnpm dev:up`, stop with `pnpm dev:down`. Credentials here are local-only throwaway values.
+# Start with `npm run dev:up`, stop with `npm run dev:down`. Credentials here are local-only throwaway values.
 services:
   mongo:
     image: mongo:8

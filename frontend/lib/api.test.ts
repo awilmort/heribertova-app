@@ -163,8 +163,10 @@ describe('api.me', () => {
     },
     role: 'team_leader',
     permissions: ['voters.lookup'],
+    recintoScopes: [],
     landing: '/panel',
     usingDefaultPassword: true,
+    permissionsStale: false,
   };
 
   it('returns who is logged in', async () => {

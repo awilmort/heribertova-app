@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { AppShell } from '@/components/app-shell/app-shell';
+import { PromotionCelebrationDialog } from '@/components/app-shell/promotion-celebration-dialog';
 import { DefaultPasswordBanner } from '@/components/auth/default-password-banner';
 import { PasswordChangeDialog } from '@/components/auth/password-change-dialog';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   return (
     <>
       <PasswordChangeDialog usingDefaultPassword={data.usingDefaultPassword} />
+      <PromotionCelebrationDialog permissionsStale={data.permissionsStale} role={data.role} />
       <AppShell userName={data.person.nickname ?? data.person.fullName}>
         {data.usingDefaultPassword && <DefaultPasswordBanner />}
         {children}

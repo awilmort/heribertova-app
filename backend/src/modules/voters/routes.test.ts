@@ -12,9 +12,9 @@ import { useTestDatabase } from '../../../test/database';
 import { importFakePadron } from '../../../test/padron';
 import { createTestPerson, createTestUser } from '../../../test/users';
 import { ageOn, campaignDate } from '../../lib/campaignDay';
-import { AuditLogModel } from '../audit/model';
 import type { Person } from '../people/model';
 import { createSession } from '../sessions/service';
+import { VoterLookupQuotaModel } from './lookupQuota';
 import type { RawVoterRecord } from './voterFile';
 import { VoterModel, type Voter } from './model';
 
@@ -108,55 +108,22 @@ describe('GET /api/voters/:cedula', () => {
     expect((await lookup(token, voter._id)).status).toBe(404);
   });
 
-  it('rejects a malformed cédula with 400, without auditing it', async () => {
+  it('rejects a malformed cédula with 400, without counting it toward the quota', async () => {
     const { token } = await caller();
     const res = await lookup(token, '001-1234567-2');
     expect(res.status).toBe(400);
     expect(apiErrorBodySchema.parse(res.body).error.fields).toHaveProperty('params.cedula');
-    expect(await AuditLogModel.countDocuments()).toBe(0);
-  });
-
-  describe('audit', () => {
-    it('records every lookup, found or not, with the cédula masked', async () => {
-      const { user, token } = await caller();
-      const voter = await voterAt(3);
-      await lookup(token, voter._id);
-      await lookup(token, UNKNOWN_CEDULA);
-
-      const entries = await AuditLogModel.find().sort({ at: 1 }).lean();
-      expect(entries).toHaveLength(2);
-      for (const entry of entries) {
-        expect(entry).toMatchObject({
-          actorUserId: user._id,
-          action: 'voter.lookup',
-          entity: 'voter',
-          entityId: null,
-        });
-      }
-      expect(entries[0]?.summary).toBe(
-        `Consultó en el padrón la cédula ${voter._id.slice(0, 3)}-*******-${voter._id.slice(10)}.`,
-      );
-      expect(entries[1]?.summary).toBe(
-        'Consultó en el padrón la cédula 999-*******-9 (no figura).',
-      );
-      expect(JSON.stringify(entries)).not.toContain(voter._id);
-    });
+    expect(await VoterLookupQuotaModel.countDocuments()).toBe(0);
   });
 
   describe('daily quota', () => {
-    /** Lookups `userId` made at `at`, as the audit log records them. */
+    /** Seeds `userId`'s quota counter as if they had already looked up `count` cédulas at `at`. */
     function pastLookups(userId: Types.ObjectId, count: number, at: Date) {
-      return AuditLogModel.insertMany(
-        Array.from({ length: count }, () => ({
-          actorUserId: userId,
-          action: 'voter.lookup',
-          entity: 'voter',
-          entityId: null,
-          summary: 'Consultó en el padrón la cédula 001-*******-2.',
-          ip: null,
-          at,
-        })),
-      );
+      return VoterLookupQuotaModel.create({
+        _id: `${userId.toHexString()}:${campaignDate(at)}`,
+        count,
+        createdAt: at,
+      });
     }
 
     it('allows the 300th lookup of the day and blocks the 301st with 429', async () => {
@@ -173,8 +140,11 @@ describe('GET /api/voters/:cedula', () => {
         message:
           'Alcanzó el límite de 300 consultas del padrón por día. Podrá consultar de nuevo mañana.',
       });
-      // The refused lookup is not recorded (nor counted) as one.
-      expect(await AuditLogModel.countDocuments({ actorUserId: user._id })).toBe(300);
+      // The refused lookup is not counted as one.
+      const quota = await VoterLookupQuotaModel.findById(
+        `${user._id.toHexString()}:${campaignDate(new Date())}`,
+      ).lean();
+      expect(quota?.count).toBe(300);
     });
 
     it('counts not-found lookups too, so cédulas cannot be probed for free', async () => {

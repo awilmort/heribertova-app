@@ -20,6 +20,8 @@ const envSchema = z.object({
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   /** Padrón lookups (`GET /api/voters/:cedula`) each user may make per Santo Domingo day (plan 2.2). */
   VOTER_LOOKUP_DAILY_QUOTA: z.coerce.number().int().positive().default(300),
+  /** Excel exports (`GET /api/exports/*.xlsx`) each user may generate per Santo Domingo day (plan 6.4). */
+  EXPORTS_DAILY_QUOTA: z.coerce.number().int().positive().default(50),
 
   /**
    * The web app's origin (scheme://host[:port]), the only `Origin` accepted on unsafe requests
@@ -51,6 +53,8 @@ const envSchema = z.object({
   S3_MEDIA_BUCKET: z.string().min(1),
   /** Voter files uploaded by the browser with a presigned PUT (9.1). */
   S3_IMPORTS_BUCKET: z.string().min(1),
+  /** The single kept database backup (9.3), replaced each time the superadmin makes a new one. */
+  S3_BACKUP_BUCKET: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -48,7 +48,7 @@ describe('parseImportArgs', () => {
     });
   });
 
-  it('ignores a leading -- forwarded by pnpm', () => {
+  it('ignores a leading -- forwarded by npm run', () => {
     expect(parseImportArgs(['--', '--file', 'p.json', '--dry-run'], cwd).mode).toBe('dry-run');
   });
 

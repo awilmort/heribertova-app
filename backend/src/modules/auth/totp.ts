@@ -19,6 +19,10 @@ import { isLocked, registerFailedAttempt } from './service';
 export const TOTP_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 /** Codes one challenge accepts before the password step must be repeated. */
 export const TOTP_CHALLENGE_MAX_ATTEMPTS = 5;
+/** How long a `POST /api/auth/totp/reverify` stays fresh enough for `requireRecentTotp` (plan 9.1's
+ * voter-file upload): generous, since the browser's own PUT to S3 in between can take a while on a
+ * slow connection for a file up to 150 MB. */
+export const TOTP_REVERIFY_TTL_MS = 30 * 60 * 1000;
 
 /** Only the superadmin logs in with a second factor (§7). */
 export function requiresTotp(user: UserDocument): boolean {
@@ -64,7 +68,7 @@ export type TotpVerification =
  * Accepts TOTP time step `step` for the user unless it (or a later one) was already used, atomically,
  * so two requests carrying the same code cannot both succeed.
  */
-async function claimTotpStep(userId: Types.ObjectId, step: number): Promise<boolean> {
+export async function claimTotpStep(userId: Types.ObjectId, step: number): Promise<boolean> {
   const { modifiedCount } = await UserModel.updateOne(
     { _id: userId, $or: [{ totpLastUsedStep: null }, { totpLastUsedStep: { $lt: step } }] },
     { totpLastUsedStep: step },

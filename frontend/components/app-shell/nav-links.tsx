@@ -3,15 +3,21 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isActivePath, NAV_ITEMS } from '@/lib/navigation';
+import { usePermissions } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 
-/** The main navigation list, shared by the desktop sidebar and the mobile drawer. */
+/** The main navigation list, shared by the desktop sidebar and the mobile drawer. Items whose
+ * `permission` the signed-in user lacks are omitted (plan 4.2). */
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const permissions = usePermissions();
+  const items = NAV_ITEMS.filter(
+    (item) => !item.permission || permissions.includes(item.permission),
+  );
 
   return (
     <ul className="flex flex-col gap-1">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label, icon: Icon }) => {
         const active = isActivePath(pathname, href);
         return (
           <li key={href}>

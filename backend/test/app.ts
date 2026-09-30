@@ -3,6 +3,7 @@ import { request } from './http';
 import { createApp, type AppConfig, type AppDependencies } from '../src/app';
 import { createLogger, type Logger } from '../src/lib/logger';
 import { SESSION_COOKIE, TOTP_CHALLENGE_COOKIE } from '../src/modules/sessions/cookie';
+import { InMemoryObjectStorage } from './objectStorage';
 import { TEST_TOTP_KEY, totpCodeAt } from './totp';
 
 export const TEST_APP_ORIGIN = 'http://localhost:3000';
@@ -13,14 +14,19 @@ export const testConfig: AppConfig = {
   RATE_LIMIT_WINDOW_MS: 60_000,
   LOGIN_RATE_LIMIT_MAX: 100,
   VOTER_LOOKUP_DAILY_QUOTA: 300,
+  EXPORTS_DAILY_QUOTA: 300,
   APP_ORIGIN: TEST_APP_ORIGIN,
   TOTP_ENC_KEY: TEST_TOTP_KEY,
 };
 
-/** External services stood in: S3 answers and every Turnstile token passes. */
+/** External services stood in: S3 answers, every Turnstile token passes, and photos land in memory
+ * instead of a real bucket. */
 export const testDependencies: AppDependencies = {
   pingS3: () => Promise.resolve(true),
   verifyTurnstile: () => Promise.resolve(true),
+  objectStorage: new InMemoryObjectStorage(),
+  importsObjectStorage: new InMemoryObjectStorage(),
+  backupObjectStorage: new InMemoryObjectStorage(),
 };
 
 export function buildTestApp(

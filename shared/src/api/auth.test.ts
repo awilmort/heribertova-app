@@ -49,8 +49,10 @@ describe('meResponseSchema', () => {
     },
     role: 'team_leader',
     permissions: ['voters.lookup', 'people.create'],
+    recintoScopes: [],
     landing: '/panel',
     usingDefaultPassword: true,
+    permissionsStale: false,
   };
 
   it('accepts a logged-in user', () => {

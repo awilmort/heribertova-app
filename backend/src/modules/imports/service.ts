@@ -1,6 +1,7 @@
 import type { Readable } from 'node:stream';
 import mongoose, { type mongo, type Types } from 'mongoose';
 import { readJsonArray } from '../../lib/jsonArray';
+import { PersonModel } from '../people/model';
 import { RecintoModel } from '../recintos/model';
 import { VoterModel } from '../voters/model';
 import { parseVoterRecord, type StagedVoter, type VoterFileSource } from '../voters/voterFile';
@@ -48,6 +49,12 @@ async function dropStaging(importId: Types.ObjectId): Promise<void> {
   await stagingCollection(importId).drop();
 }
 
+/** `DELETE /api/imports/:id` (plan 9.2's discard): drops `importId`'s staging collection, if any.
+ * Safe to call again on retry — dropping a collection that is already gone is a no-op. */
+export async function discardStaging(importId: Types.ObjectId): Promise<void> {
+  await dropStaging(importId);
+}
+
 function cedulaOf(raw: unknown): string | null {
   if (typeof raw !== 'object' || raw === null || !('cedula' in raw)) return null;
   return typeof raw.cedula === 'string' ? raw.cedula : null;
@@ -60,15 +67,19 @@ interface AcceptedRecord {
 
 /**
  * Streams the file, validates and maps every record, and builds the report. Accepted voters are
- * handed to `onBatch` (staging) in batches. Reads the database for the diff; never writes to it.
+ * handed to `onBatch` (staging) in batches; `onProgress` is called with the running row count every
+ * `STAGING_BATCH_SIZE` rows (plan 9.1's progress bar), whatever the accept/reject mix. Reads the
+ * database for the diff; never writes to it.
  */
 async function analyze(
   source: Readable,
   onBatch?: (voters: StagedVoter[]) => Promise<void>,
+  onProgress?: (rowsProcessed: number) => Promise<void>,
 ): Promise<VoterImportReport> {
   const builder = new VoterImportReportBuilder();
   const cedulasInFile = new Set<string>();
   let batch: AcceptedRecord[] = [];
+  let rowsProcessed = 0;
 
   const flush = async () => {
     const ids = batch.map(({ voter }) => voter._id);
@@ -85,24 +96,25 @@ async function analyze(
 
   for await (const { index, value } of readJsonArray(source)) {
     const row = index + 1;
+    rowsProcessed = row;
     const parsed = parseVoterRecord(value);
     if (!parsed.ok) {
       builder.reject({ row, cedula: cedulaOf(value), reasons: parsed.reasons });
-      continue;
-    }
-    if (cedulasInFile.has(parsed.voter._id)) {
+    } else if (cedulasInFile.has(parsed.voter._id)) {
       builder.reject({
         row,
         cedula: parsed.voter._id,
         reasons: ['cedula: repetida en el archivo'],
       });
-      continue;
+    } else {
+      cedulasInFile.add(parsed.voter._id);
+      batch.push({ voter: parsed.voter, source: parsed.source });
     }
-    cedulasInFile.add(parsed.voter._id);
-    batch.push({ voter: parsed.voter, source: parsed.source });
     if (batch.length === STAGING_BATCH_SIZE) await flush();
+    if (row % STAGING_BATCH_SIZE === 0) await onProgress?.(row);
   }
   if (batch.length > 0) await flush();
+  if (rowsProcessed > 0) await onProgress?.(rowsProcessed);
 
   const missing = await countWithSamples(activeVotersNotIn(cedulasInFile));
   const currentRecintos = await RecintoModel.find().select({ _id: 1 }).lean<{ _id: string }[]>();
@@ -167,19 +179,37 @@ export async function stageVoterFile(input: StageVoterFileInput): Promise<VoterI
     s3Key: input.s3Key ?? null,
     uploadedBy: input.uploadedBy ?? null,
     status: 'validating',
+    progress: { rowsProcessed: 0 },
     report: null,
     failureReason: null,
   });
   await record.save();
+  return runValidation(record, input.openFile);
+}
 
+/**
+ * Runs `analyze` against `openFile()` into `record`'s own staging collection, saving the report
+ * (`staged`) or the failure (`failed`) on it. Shared by `stageVoterFile` (2.1, synchronous) and
+ * `validateUploadedImport` (9.1, run in the background after the record is already `uploaded`).
+ */
+async function runValidation(
+  record: VoterImportDocument,
+  openFile: OpenVoterFile,
+): Promise<VoterImportDocument> {
   const staging = stagingCollection(record._id);
   try {
     // A failed earlier attempt may have left rows behind.
     await dropStaging(record._id);
-    const report = await analyze(input.openFile(), async (voters) => {
-      await staging.insertMany(voters, { ordered: true });
-    });
-    record.set({ status: 'staged', report });
+    const report = await analyze(
+      openFile(),
+      async (voters) => {
+        await staging.insertMany(voters, { ordered: true });
+      },
+      async (rowsProcessed) => {
+        await VoterImportModel.updateOne({ _id: record._id }, { progress: { rowsProcessed } });
+      },
+    );
+    record.set({ status: 'staged', report, progress: null });
     await record.save();
     return record;
   } catch (err) {
@@ -187,9 +217,81 @@ export async function stageVoterFile(input: StageVoterFileInput): Promise<VoterI
     record.set({
       status: 'failed',
       failureReason: err instanceof Error ? err.message : String(err),
+      progress: null,
     });
     await record.save();
     throw err;
+  }
+}
+
+export interface CreateUploadedImportInput {
+  fileName: string;
+  /** SHA-256 of the file content, hex. */
+  sha256: string;
+  cut: string;
+  /** Where the browser already PUT the file (plan 9.1). */
+  s3Key: string;
+  uploadedBy: Types.ObjectId;
+}
+
+export type CreateUploadedImportResult =
+  | { kind: 'created'; record: VoterImportDocument }
+  | { kind: 'duplicate'; record: VoterImportDocument };
+
+/**
+ * `POST /api/imports` (plan 9.1): creates the `uploaded` record for a file the browser already PUT
+ * to the imports bucket, without validating it yet — the route starts `validateUploadedImport` in the
+ * background and answers immediately, so the browser has an id to poll. Idempotent on `sha256` like
+ * `stageVoterFile`: a non-failed import of the same content is reported as a duplicate instead of
+ * being recreated.
+ */
+export async function createUploadedImport(
+  input: CreateUploadedImportInput,
+): Promise<CreateUploadedImportResult> {
+  await VoterImportModel.init();
+  const existing = await VoterImportModel.findOne({ sha256: input.sha256 });
+  if (existing && existing.status !== 'failed') return { kind: 'duplicate', record: existing };
+
+  const record = existing ?? new VoterImportModel({ sha256: input.sha256 });
+  record.set({
+    cut: input.cut,
+    fileName: input.fileName,
+    s3Key: input.s3Key,
+    uploadedBy: input.uploadedBy,
+    status: 'uploaded',
+    progress: null,
+    report: null,
+    failureReason: null,
+  });
+  await record.save();
+  return { kind: 'created', record };
+}
+
+/**
+ * Validates an import `createUploadedImport` just created, streaming its file from `openFile` (the
+ * route passes the imports bucket's `getStream`). Meant to be started without awaiting it (the route
+ * has already answered): never throws, since there is no caller left to catch it — every failure,
+ * including one from `record.save()` itself, is recorded as `status: 'failed'` on the record.
+ */
+export async function validateUploadedImport(
+  record: VoterImportDocument,
+  openFile: OpenVoterFile,
+): Promise<void> {
+  try {
+    record.set({ status: 'validating', progress: { rowsProcessed: 0 } });
+    await record.save();
+    await runValidation(record, openFile);
+  } catch (err) {
+    // runValidation already recorded `failed` for anything it caught; this is only for a failure
+    // (e.g. the record.save() above) that happened before or outside of it.
+    if (record.status !== 'failed') {
+      record.set({
+        status: 'failed',
+        failureReason: err instanceof Error ? err.message : String(err),
+        progress: null,
+      });
+      await record.save().catch(() => undefined);
+    }
   }
 }
 
@@ -255,6 +357,7 @@ export async function applyVoterImport(importId: Types.ObjectId): Promise<VoterI
   await mergeIntoVoters(staging, record._id);
   await deactivateMissingVoters(record._id);
   await rebuildRecintos(staging);
+  await refreshMemberSnapshots();
 
   record.set({ status: 'applied', appliedAt: new Date() });
   await record.save();
@@ -306,4 +409,65 @@ async function rebuildRecintos(staging: mongo.Collection<StagedVoter>): Promise<
       { $out: RecintoModel.collection.collectionName },
     ])
     .toArray();
+}
+
+/**
+ * Refreshes every registered member's `voterSnapshot` from their (now current) voter and recinto
+ * records (plan 9.2's "members of moved voters show the new recinto"; `Person.voterSnapshot`'s own
+ * doc comment has always called this "refreshed by voter imports"). A read-only aggregation ending
+ * in `$merge` (MongoDB's update pipelines don't allow `$lookup`, unlike a plain aggregation), not a
+ * per-person read-modify-write: `people` only grows to the campaign's member count, but this runs
+ * after every apply, including the 181k-voter kind, so no round trip per member.
+ *
+ * The pipeline outputs only `_id` and `voterSnapshot`, so `$merge`'s `whenMatched: 'merge'` touches
+ * that one field and leaves every other field on the document exactly as it was — it can never
+ * clobber a concurrent edit to, say, a member's phone number.
+ *
+ * A person whose voter is missing from the new cut (now `inactive`) is left with their last-known
+ * snapshot — there is no fresher data to bring in for them, and `people/service.ts`'s
+ * `voterInactive` flag is what tells the UI "ya no figura en el padrón".
+ */
+async function refreshMemberSnapshots(): Promise<void> {
+  await PersonModel.aggregate([
+    { $match: { deletedAt: null } },
+    {
+      $lookup: {
+        from: VoterModel.collection.collectionName,
+        localField: 'cedula',
+        foreignField: '_id',
+        as: '_voter',
+      },
+    },
+    { $unwind: '$_voter' },
+    { $match: { '_voter.status': 'active' } },
+    {
+      $lookup: {
+        from: RecintoModel.collection.collectionName,
+        localField: '_voter.recintoKey',
+        foreignField: '_id',
+        as: '_recinto',
+      },
+    },
+    { $unwind: { path: '$_recinto', preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        voterSnapshot: {
+          fullName: '$_voter.fullName',
+          recintoKey: '$_voter.recintoKey',
+          recintoName: { $ifNull: ['$_recinto.name', '$voterSnapshot.recintoName'] },
+          colegioId: '$_voter.colegioId',
+          sector: '$_voter.sector',
+          birthDate: '$_voter.birthDate',
+        },
+      },
+    },
+    {
+      $merge: {
+        into: PersonModel.collection.collectionName,
+        on: '_id',
+        whenMatched: 'merge',
+        whenNotMatched: 'discard',
+      },
+    },
+  ]);
 }

@@ -15,11 +15,11 @@ import {
 } from './service';
 
 /**
- * `pnpm --filter @heribertova/backend voters:import`: the command-line front end of the import core
+ * `npm run voters:import --workspace=backend`: the command-line front end of the import core
  * (plan 2.1). `scripts/voters-import.ts` only wires it to the environment and the database.
  */
 
-export const USAGE = `Usage: pnpm --filter @heribertova/backend voters:import --file <path> [--cut <label>] [--dry-run | --apply]
+export const USAGE = `Usage: npm run voters:import --workspace=backend -- --file <path> [--cut <label>] [--dry-run | --apply]
 
   --file <path>   the voter file (JSON array, HERIBERTO_ARCHITECTURE.md §3.1)
   --dry-run       validate and print the report; writes nothing to the database
@@ -40,10 +40,10 @@ export class UsageError extends Error {
 
 /**
  * Parses the arguments after the script name. A relative `--file` is resolved against `cwd`
- * (the script passes pnpm's INIT_CWD, the directory the command was typed in).
+ * (the script passes npm's INIT_CWD, the directory the command was typed in).
  */
 export function parseImportArgs(argv: readonly string[], cwd: string): ImportCliOptions {
-  // `pnpm voters:import -- --file x` forwards the separator; it carries no meaning here.
+  // `npm run voters:import -- --file x` forwards the separator; it carries no meaning here.
   const args = argv[0] === '--' ? argv.slice(1) : [...argv];
   let values;
   try {

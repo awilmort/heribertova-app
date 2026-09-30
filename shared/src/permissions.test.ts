@@ -14,6 +14,7 @@ describe('PERMISSIONS', () => {
         'people.export',
         'leaders.nominate',
         'leaders.promoteManual',
+        'recintos.viewOwn',
         'recintos.assignCoordinator',
         'users.manage',
         'users.resetPassword',
@@ -22,6 +23,7 @@ describe('PERMISSIONS', () => {
         'settings.manage',
         'voters.import',
         'audit.view',
+        'backups.manage',
       ].sort(),
     );
   });
@@ -44,7 +46,7 @@ describe('ROLE_PERMISSIONS', () => {
     expect([...ROLE_PERMISSIONS.superadmin].sort()).toEqual([...PERMISSIONS].sort());
   });
 
-  it.each(['voters.import', 'settings.manage', 'audit.view'] as const)(
+  it.each(['voters.import', 'settings.manage', 'audit.view', 'backups.manage'] as const)(
     'reserves %s to the superadmin',
     (permission) => {
       const holders = ROLES.filter((role) => hasPermission(role, permission));
@@ -95,13 +97,14 @@ describe('ROLE_PERMISSIONS', () => {
     expect(hasPermission('aspiring_leader', 'leaders.nominate')).toBe(false);
   });
 
-  it('lets every role look up voters and register, edit and delete its members', () => {
+  it('lets every role look up voters, register/edit/delete its members, and see its own recinto', () => {
     for (const role of ROLES) {
       for (const permission of [
         'voters.lookup',
         'people.create',
         'people.update',
         'people.delete',
+        'recintos.viewOwn',
       ] as const) {
         expect(hasPermission(role, permission)).toBe(true);
       }

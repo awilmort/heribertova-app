@@ -100,6 +100,50 @@ export async function deleteSession(token: string): Promise<void> {
 }
 
 /**
+ * `GET /api/me`'s "was I just promoted?" check (plan 6.2): atomically reads and clears
+ * `permissionsStale` in one write, so it is reported at most once even if `/me` is called twice in
+ * quick succession. False for an unknown session token, which `requireAuth` would already have
+ * refused before this ever runs.
+ */
+export async function consumePermissionsStale(token: string): Promise<boolean> {
+  const session = await SessionModel.findOneAndUpdate(
+    { tokenHash: hashToken(token) },
+    { permissionsStale: false },
+    { returnDocument: 'before' },
+  ).lean();
+  return session?.permissionsStale ?? false;
+}
+
+/**
+ * Marks every session of a user `permissionsStale` (plan 6.1's promotion/demotion): unlike
+ * `revokeUserSessions`, the sessions stay valid — only their role changed underneath them, not their
+ * right to be logged in — so `/me` can flag it and the UI refreshes in place (LOE parity).
+ */
+export async function flagSessionsStale(
+  userId: Types.ObjectId,
+  session: ClientSession,
+): Promise<void> {
+  await SessionModel.updateMany({ userId }, { permissionsStale: true }, { session });
+}
+
+/**
+ * Marks the session behind `token` as having just passed `POST /api/auth/totp/reverify` (plan 9.1's
+ * voter-file upload gate). `getTotpVerifiedAt`/`requireRecentTotp` check how long ago this was.
+ */
+export async function markTotpVerified(token: string): Promise<void> {
+  await SessionModel.updateOne({ tokenHash: hashToken(token) }, { totpVerifiedAt: new Date() });
+}
+
+/** When the session behind `token` last passed a TOTP re-verification, or null (never, or unknown
+ * session — `requireAuth` would already have refused the request before this runs). */
+export async function getTotpVerifiedAt(token: string): Promise<Date | null> {
+  const session = await SessionModel.findOne({ tokenHash: hashToken(token) })
+    .select({ totpVerifiedAt: 1 })
+    .lean();
+  return session?.totpVerifiedAt ?? null;
+}
+
+/**
  * Ends every session of a user, except the one behind `keepToken` when given (the request's own,
  * after a password change). Runs in the transaction `session` of the change that requires it.
  */

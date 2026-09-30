@@ -1,20 +1,14 @@
-import { PERSON_LEVELS, type PersonLevel } from '@heribertova/shared';
+import {
+  DOC_STATUSES,
+  PERSON_LEVELS,
+  PERSON_STATUSES,
+  type DocStatus,
+  type PersonLevel,
+  type PersonStatus,
+} from '@heribertova/shared';
 import { model, Schema, type Types } from 'mongoose';
 
-/** Follow-up status set by coordinators when validating a member (plan 5.4); null until then. */
-export const PERSON_STATUSES = [
-  'confirmed',
-  'excused',
-  'not_contacted',
-  'deceased',
-  'resigned',
-  'sick',
-  'inactive',
-] as const;
-export type PersonStatus = (typeof PERSON_STATUSES)[number];
-
-export const DOC_STATUSES = ['pending', 'partial', 'complete'] as const;
-export type DocStatus = (typeof DOC_STATUSES)[number];
+export type { DocStatus, PersonStatus };
 
 /** The voter data copied at registration and refreshed by voter imports (who they are, where they vote). */
 export interface VoterSnapshot {
@@ -65,6 +59,11 @@ export interface Person {
   consentAt: Date;
   /** Soft delete. */
   deletedAt: Date | null;
+  /** Soft-delete reason, kept for the audit trail. */
+  deletedReason: string | null;
+  /** The client's `Idempotency-Key` on `POST /api/people` (plan 5.1), so a retried submit over a
+   * flaky connection returns the original record instead of a duplicate-cédula error. */
+  idempotencyKey: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -110,6 +109,11 @@ const personSchema = new Schema<Person>(
     validatedAt: { type: Date, default: null },
     consentAt: { type: Date, required: true },
     deletedAt: { type: Date, default: null },
+    deletedReason: { type: String, default: null },
+    // No `default: null` on purpose: a sparse index does not skip an explicit null, only a field
+    // that is genuinely absent, so every person without a key would collide on {registeredBy: X,
+    // idempotencyKey: null}. Leaving it unset when there is no key is what makes the index sparse.
+    idempotencyKey: { type: String },
   },
   { collection: 'people', timestamps: true, versionKey: false },
 );
@@ -120,5 +124,10 @@ personSchema.index({ ancestors: 1 });
 personSchema.index({ 'voterSnapshot.recintoKey': 1 });
 personSchema.index({ 'voterSnapshot.sector': 1 });
 personSchema.index({ level: 1 });
+// Single-field on purpose: a sparse *compound* index only skips a document missing every one of
+// its fields, and registeredBy is always present, so {registeredBy, idempotencyKey} would still
+// index (and collide on) every person who submitted without a key. The client is expected to send
+// a globally unique key (e.g. a UUID) per submission, so plain uniqueness here is correct anyway.
+personSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true, name: 'idempotency' });
 
 export const PersonModel = model<Person>('Person', personSchema);

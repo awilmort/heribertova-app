@@ -9,6 +9,7 @@ import { validate } from '../../middleware/validate';
 import type { ApiRoute } from '../../routing/apiRoute';
 import { actorOf } from '../audit/service';
 import { readSessionToken } from '../sessions/cookie';
+import { consumePermissionsStale } from '../sessions/service';
 import { changeOwnPassword } from '../users/service';
 import { getMe } from './service';
 
@@ -20,7 +21,11 @@ export function createMeRoutes(): ApiRoute[] {
       access: 'authenticated',
       handlers: [
         async (req, res) => {
-          res.json((await getMe(currentUser(req))) satisfies MeResponse);
+          // requireAuth admitted the request, so it carries a session token.
+          const token = readSessionToken(req);
+          if (!token) throw new Error('Authenticated request without a session token');
+          const permissionsStale = await consumePermissionsStale(token);
+          res.json((await getMe(currentUser(req), permissionsStale)) satisfies MeResponse);
         },
       ],
     },

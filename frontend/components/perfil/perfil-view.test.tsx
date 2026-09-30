@@ -21,8 +21,10 @@ const me: MeResponse = {
   },
   role: 'team_leader',
   permissions: ['voters.lookup'],
+  recintoScopes: [],
   landing: '/panel',
   usingDefaultPassword: true,
+  permissionsStale: false,
 };
 
 const fetchMock = vi.fn<typeof fetch>();

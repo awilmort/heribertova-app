@@ -1,12 +1,14 @@
 - Follow the DRY principle.
 - Follow the SOLID principle.
 - Follow YAGNI principle.
-- Well-tested code is non-negotiable. Prefer too many tests over too few.
+- Speed of delivery matters more than test coverage on this project. Testing is light-touch, like Pilloto PMS: write a test only for complex or high-risk business logic (e.g. a tricky calculation or policy branch), not for every route, model, or component.
+- Do not write integration tests that spin up a real database (no `mongodb-memory-server`, no multi-document transactions in tests). If a unit needs a database to test meaningfully, either skip the test or use a lightweight mock/fake instead.
+- Do not build self-enforcing/structural test suites — no "every route must have a matrix case" or "every mutation must be audited" style tests. These create an ongoing maintenance tax that is not worth it here.
+- Do not add an authorization-matrix test or an audit-coverage test; these were tried and explicitly removed as too costly for this project's size.
 - I want code that is "engineered enough":
   - not fragile
   - not hacky
   - not prematurely abstracted
   - not over-engineered
-- Thoughtfulness is more important than speed.
 - Prefer explicit code over clever code.
 - No dead code. If a class only exists for tests and has no production consumer, it should be deleted or integrated.

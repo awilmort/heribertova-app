@@ -11,40 +11,50 @@
     "s3:check": "tsx --env-file-if-exists=.env scripts/s3-check.ts",
     "voters:import": "tsx --max-old-space-size=160 --env-file-if-exists=.env scripts/voters-import.ts",
     "voters:fake": "tsx scripts/fake-voter-file.ts",
-    "superadmin:create": "tsx --env-file-if-exists=.env scripts/create-superadmin.ts"
+    "voters:seed": "npm run voters:fake -- --out tmp/voters.json && npm run voters:import -- --file tmp/voters.json --cut dev --apply",
+    "superadmin:create": "tsx --env-file-if-exists=.env scripts/create-superadmin.ts",
+    "superadmin:seed": "tsx --env-file-if-exists=.env scripts/seed-superadmin.ts",
+    "backup:restore": "tsx --env-file-if-exists=.env scripts/restore.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",
-    "@heribertova/shared": "workspace:*",
+    "@aws-sdk/s3-request-presigner": "^3.1142.0",
+    "@heribertova/shared": "*",
     "@inquirer/confirm": "^6.3.2",
     "@inquirer/input": "^5.1.6",
     "@inquirer/password": "^5.2.2",
     "argon2": "^0.45.1",
+    "bson": "^7.2.0",
     "cookie-parser": "^1.4.7",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
+    "file-type": "^22.1.1",
     "helmet": "^8.3.0",
     "mongoose": "^9.10.2",
+    "multer": "^2.4.0",
     "otpauth": "^9.5.2",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "qrcode": "^1.5.4",
+    "sharp": "^0.35.5",
     "stream-json": "^3.7.0",
-    "zod": "catalog:"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
-    "@types/node": "catalog:",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^22.20.4",
     "@types/qrcode": "^1.5.6",
     "@types/supertest": "^7.2.1",
     "esbuild": "^0.28.2",
-    "eslint": "catalog:",
+    "eslint": "^9.39.5",
     "mongodb-memory-server": "^11.3.0",
     "pino-pretty": "^13.1.3",
     "supertest": "^7.3.0",
     "tsx": "^4.23.15",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.2"
   }
 }

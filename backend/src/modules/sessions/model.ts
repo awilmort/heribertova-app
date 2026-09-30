@@ -16,6 +16,13 @@ export interface Session {
   ip: string | null;
   /** User-Agent at login (truncated), to recognise the device. */
   ua: string | null;
+  /** Set when this user's role changed since they logged in (plan 6.1's auto-promotion, or a manual
+   * promote/demote): the UI refetches `/me` and shows the promotion celebration without a new login
+   * (LOE parity), instead of the nav quietly lying about the user's permissions until they log out. */
+  permissionsStale: boolean;
+  /** When this session's user last passed `POST /api/auth/totp/reverify`; null before the first time.
+   * `requireRecentTotp` (plan 9.1's voter-file upload) needs one within its own TTL of "now". */
+  totpVerifiedAt: Date | null;
 }
 
 const sessionSchema = new Schema<Session>(
@@ -27,6 +34,8 @@ const sessionSchema = new Schema<Session>(
     expiresAt: { type: Date, required: true },
     ip: { type: String, default: null },
     ua: { type: String, default: null },
+    permissionsStale: { type: Boolean, default: false },
+    totpVerifiedAt: { type: Date, default: null },
   },
   { collection: 'sessions', versionKey: false },
 );

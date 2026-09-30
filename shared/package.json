@@ -1,5 +1,6 @@
 {
   "name": "@heribertova/shared",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Contracts shared by backend and frontend (zod schemas, types). Consumed as TypeScript source.",
@@ -11,11 +12,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "catalog:"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "eslint": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "eslint": "^9.39.5",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.2"
   }
 }

@@ -85,8 +85,8 @@ describe('audit of a read', () => {
     await audit(
       who,
       {
-        action: 'voter.lookup',
-        entity: 'voter',
+        action: 'settings.updated',
+        entity: 'settings',
         entityId: null,
         summary: 'Consultó en el padrón la cédula 00112345672.',
       },
@@ -95,8 +95,8 @@ describe('audit of a read', () => {
     const entry = await AuditLogModel.findOne().lean();
     expect(entry).toMatchObject({
       actorUserId: who.user._id,
-      action: 'voter.lookup',
-      entity: 'voter',
+      action: 'settings.updated',
+      entity: 'settings',
       entityId: null,
       summary: 'Consultó en el padrón la cédula 001-*******-2.',
     });

@@ -18,7 +18,7 @@ import {
 import { newPasswordProblem } from './service';
 
 /**
- * `pnpm --filter @heribertova/backend superadmin:create`: the conversation that creates the one
+ * `npm run superadmin:create --workspace=backend`: the conversation that creates the one
  * superadmin (plan 3.3). `scripts/create-superadmin.ts` only wires it to the terminal, the
  * environment and the database.
  */

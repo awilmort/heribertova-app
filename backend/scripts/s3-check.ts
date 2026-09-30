@@ -1,8 +1,8 @@
 // Proves the configured S3 credentials can put, get and delete objects in every bucket the API
-// writes to. Locally it runs against the emulator (`pnpm dev:up` first); in production (plan 10.1)
-// run it with the prod environment to verify the least-privilege key.
+// writes to. Locally it runs against the emulator (`npm run dev:up` first); in production (plan
+// 10.1) run it with the prod environment to verify the least-privilege key.
 //
-//   pnpm --filter @heribertova/backend s3:check
+//   npm run s3:check --workspace=backend
 import { loadEnv } from '../src/config/env';
 import { createS3Client, verifyBucketReadWrite } from '../src/storage/s3';
 

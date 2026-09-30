@@ -2,34 +2,43 @@
   "name": "heribertova",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.6.0",
   "engines": {
     "node": ">=22.12.0"
   },
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "prepare": "simple-git-hooks",
-    "dev": "pnpm --parallel --filter @heribertova/backend --filter @heribertova/frontend dev",
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --workspace=@heribertova/backend\" \"npm run dev --workspace=@heribertova/frontend\"",
     "dev:up": "docker compose -f docker-compose.dev.yml up -d --wait mongo s3 && docker compose -f docker-compose.dev.yml run --rm s3-init",
     "dev:down": "docker compose -f docker-compose.dev.yml down",
-    "build": "pnpm -r build",
-    "lint": "eslint scripts && pnpm -r lint",
-    "typecheck": "pnpm -r typecheck",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint scripts && npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "pnpm --filter @heribertova/frontend test:e2e",
+    "test:e2e": "npm run test:e2e --workspace=@heribertova/frontend",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "voters:seed": "npm run voters:seed --workspace=@heribertova/backend",
+    "superadmin:seed": "npm run superadmin:seed --workspace=@heribertova/backend",
+    "superadmin:create": "npm run superadmin:create --workspace=@heribertova/backend",
+    "s3:check": "npm run s3:check --workspace=@heribertova/backend"
   },
   "devDependencies": {
-    "@eslint/js": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "globals": "catalog:",
-    "prettier": "catalog:",
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
     "simple-git-hooks": "^2.14.0",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "~6.0.3",
+    "typescript-eslint": "~8.70.1",
+    "vitest": "^5.0.2"
   },
   "simple-git-hooks": {
     "pre-commit": "node scripts/pre-commit.mjs"

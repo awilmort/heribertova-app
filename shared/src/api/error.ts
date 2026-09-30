@@ -12,6 +12,10 @@ export const ERROR_CODES = [
   'INVALID_TOTP_CODE',
   /** No valid session: never logged in, logged out, expired, or the account was deactivated. */
   'UNAUTHENTICATED',
+  /** A sensitive action (plan 9.1's voter-file upload) needs a fresh `POST /api/auth/totp/reverify`. */
+  'TOTP_REVERIFICATION_REQUIRED',
+  /** `POST /api/imports/upload-url`: this file's SHA-256 was already uploaded. */
+  'DUPLICATE_IMPORT',
   'FORBIDDEN',
   'RATE_LIMITED',
   'INTERNAL_ERROR',

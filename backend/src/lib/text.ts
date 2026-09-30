@@ -25,3 +25,8 @@ export function normalizeForSearch(text: string): string {
 export function slugify(text: string): string {
   return normalizeForSearch(text).replace(/ /g, '-');
 }
+
+/** Escapes regex metacharacters so user input can be used as a literal in a `RegExp`. */
+export function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

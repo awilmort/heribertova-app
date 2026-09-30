@@ -13,6 +13,7 @@ import { useTestDatabase } from '../../../test/database';
 import { createTestUser, DEFAULT_TEST_PASSWORD } from '../../../test/users';
 import { AuditLogModel } from '../audit/model';
 import { PersonModel } from '../people/model';
+import { SessionModel } from '../sessions/model';
 import { UserModel } from '../users/model';
 import { landingFor } from './landing';
 
@@ -80,9 +81,22 @@ describe('GET /api/me', () => {
       },
       role: 'recinto_coordinator',
       permissions: [...ROLE_PERMISSIONS.recinto_coordinator],
+      recintoScopes: [],
       landing: '/panel/general',
       usingDefaultPassword: true,
+      permissionsStale: false,
     });
+  });
+
+  it('reports permissionsStale once and clears it', async () => {
+    const { user, token } = await loggedIn();
+    await SessionModel.updateMany({ userId: user._id }, { permissionsStale: true });
+
+    const first = await me(token);
+    expect(first.body).toMatchObject({ permissionsStale: true });
+
+    const second = await me(token);
+    expect(second.body).toMatchObject({ permissionsStale: false });
   });
 
   it.each(ROLES)('returns the permissions and landing page of a %s', async (role) => {

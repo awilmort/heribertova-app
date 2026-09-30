@@ -54,7 +54,7 @@ export async function pingBucket(
 
 /**
  * Writes, reads back and deletes a small object: proves the credentials can do what the API needs
- * in `bucket` (used by `pnpm --filter @heribertova/backend s3:check`). Throws on any failure.
+ * in `bucket` (used by `npm run s3:check --workspace=backend`). Throws on any failure.
  * The object is deleted even when the read-back fails.
  */
 export async function verifyBucketReadWrite(client: S3Client, bucket: string): Promise<void> {

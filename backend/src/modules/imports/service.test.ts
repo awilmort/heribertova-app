@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useTestDatabase } from '../../../test/database';
 import { generateFakeVoterRecords, voterFileChunks } from '../../../test/fakeVoterFile';
 import { collapseSpaces } from '../../lib/text';
+import { PersonModel } from '../people/model';
 import { RecintoModel } from '../recintos/model';
 import { VoterModel } from '../voters/model';
 import { parseVoterRecord, type RawVoterRecord, type StagedVoter } from '../voters/voterFile';
@@ -47,6 +48,29 @@ async function stage(records: readonly unknown[], cut = 'mayo2024') {
 async function stageAndApply(records: readonly unknown[]) {
   const staged = await stage(records);
   return applyVoterImport(staged._id);
+}
+
+/** A minimal registered member for `voter`, so a test can check `applyVoterImport`'s snapshot
+ * refresh without going through the full registration flow (policy checks, leader resolution). */
+async function registerTestPerson(voter: StagedVoter) {
+  const someone = new Types.ObjectId();
+  return PersonModel.create({
+    cedula: voter._id,
+    voterSnapshot: {
+      fullName: voter.fullName,
+      recintoKey: voter.recintoKey,
+      recintoName: voter.recintoName,
+      colegioId: voter.colegioId,
+      sector: voter.sector,
+      birthDate: voter.birthDate,
+    },
+    phone: '8095550000',
+    phoneWhatsapp: true,
+    level: 'member',
+    registeredBy: someone,
+    docStatus: 'pending',
+    consentAt: new Date(),
+  });
 }
 
 async function collectionNames(): Promise<string[]> {
@@ -476,6 +500,36 @@ describe('applyVoterImport', () => {
     expect(recintoKeys).not.toContain(cut.removedRecinto);
     const counted = (await RecintoModel.find().lean()).reduce((sum, r) => sum + r.voterCount, 0);
     expect(counted).toBe(activeExpected);
+  });
+
+  it("refreshes a moved member's voterSnapshot, but leaves a now-missing member's snapshot alone", async () => {
+    await stageAndApply(BASE);
+    const cut = secondCut();
+
+    const movedVoter = mapped(BASE.find((r) => r.cedula === cut.movedRecinto[0]));
+    const movedPerson = await registerTestPerson(movedVoter);
+    const missingVoter = mapped(BASE.find((r) => r.cedula === cut.removedVoters[0]));
+    const missingPerson = await registerTestPerson(missingVoter);
+
+    await stageAndApply(cut.records);
+
+    const expectedNew = mapped(cut.records.find((r) => r.cedula === cut.movedRecinto[0]));
+    const refreshed = await PersonModel.findById(movedPerson._id).lean();
+    expect(refreshed?.voterSnapshot).toEqual({
+      fullName: expectedNew.fullName,
+      recintoKey: expectedNew.recintoKey,
+      recintoName: expectedNew.recintoName,
+      colegioId: expectedNew.colegioId,
+      sector: expectedNew.sector,
+      birthDate: expectedNew.birthDate,
+    });
+    // Every other field is left exactly as it was: the pipeline only ever touches voterSnapshot.
+    expect(refreshed?.phone).toBe('8095550000');
+
+    // The voter is now inactive (absent from the new cut): there is no fresher data for them, so
+    // their last-known snapshot (their old recinto) is left in place, not cleared or stale-erased.
+    const untouched = await PersonModel.findById(missingPerson._id).lean();
+    expect(untouched?.voterSnapshot.recintoKey).toBe(missingVoter.recintoKey);
   });
 
   it('reactivates voters who come back in a later cut and reports them as new', async () => {

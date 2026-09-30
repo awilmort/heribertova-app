@@ -11,6 +11,7 @@ const required = {
   AWS_SECRET_ACCESS_KEY: 'test-secret-key',
   S3_MEDIA_BUCKET: 'media',
   S3_IMPORTS_BUCKET: 'imports',
+  S3_BACKUP_BUCKET: 'backups',
   APP_ORIGIN: 'http://localhost:3000',
   TURNSTILE_SECRET_KEY: 'test-turnstile-secret',
   TOTP_ENC_KEY: TOTP_KEY_BASE64,
@@ -29,6 +30,7 @@ describe('loadEnv', () => {
       RATE_LIMIT_WINDOW_MS: 900_000,
       LOGIN_RATE_LIMIT_MAX: 10,
       VOTER_LOOKUP_DAILY_QUOTA: 300,
+      EXPORTS_DAILY_QUOTA: 50,
       AWS_REGION: 'us-east-1',
       S3_FORCE_PATH_STYLE: false,
     });
@@ -94,6 +96,7 @@ describe('loadEnv', () => {
       'AWS_SECRET_ACCESS_KEY',
       'S3_MEDIA_BUCKET',
       'S3_IMPORTS_BUCKET',
+      'S3_BACKUP_BUCKET',
     ] as const)('fails when %s is missing', (name) => {
       expect(() => loadEnv({ ...required, [name]: undefined })).toThrow(new RegExp(name));
     });
@@ -133,6 +136,14 @@ describe('loadEnv', () => {
       expect(env.VOTER_LOOKUP_DAILY_QUOTA).toBe(50);
       expect(() => loadEnv({ ...required, VOTER_LOOKUP_DAILY_QUOTA: '0' })).toThrow(
         /VOTER_LOOKUP_DAILY_QUOTA/,
+      );
+    });
+
+    it('coerces EXPORTS_DAILY_QUOTA and rejects zero', () => {
+      const env = loadEnv({ ...required, EXPORTS_DAILY_QUOTA: '5' });
+      expect(env.EXPORTS_DAILY_QUOTA).toBe(5);
+      expect(() => loadEnv({ ...required, EXPORTS_DAILY_QUOTA: '0' })).toThrow(
+        /EXPORTS_DAILY_QUOTA/,
       );
     });
 

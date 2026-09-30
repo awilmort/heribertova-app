@@ -1,7 +1,7 @@
 // Creates the one superadmin: the campaign owner, with a strong password and TOTP (plan 3.3).
 // Needs MongoDB with the padrón imported (voters:import --apply) and TOTP_ENC_KEY set.
 //
-//   pnpm --filter @heribertova/backend superadmin:create      (local, from the repo)
+//   npm run superadmin:create --workspace=backend              (local, from the repo)
 //   node dist/scripts/create-superadmin.js                     (built; HERIBERTO_ARCHITECTURE.md A.3)
 import confirm from '@inquirer/confirm';
 import input from '@inquirer/input';

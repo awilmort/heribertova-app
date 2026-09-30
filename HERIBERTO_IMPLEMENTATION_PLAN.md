@@ -50,8 +50,8 @@ Logo, icons and color tokens are in `brand/` (`BRAND.md`). Consent texts are dra
 ## PHASE 1 — Foundation
 
 **1.1 Repository scaffold**
-pnpm workspaces `frontend/`, `backend/`, `shared/`; strict tsconfig bases; ESLint flat config + Prettier; Vitest; `docker-compose.dev.yml` (MongoDB 8, single-node replica set so transactions work locally); `.env.example` for each app with placeholders only; `.gitignore` covering `.env*`, `*.csv` key files, dumps and `padron_*.json`/`padron_*.csv`; `AGENTS.md`/`CLAUDE.md`; GitHub Actions `ci.yml` (install, typecheck, lint, test, build) on PRs.
-Done when: `pnpm i && pnpm dev` runs both apps against local Mongo; `pnpm lint && pnpm typecheck && pnpm test && pnpm build` pass locally. `ci.yml` is written now and first runs when the remote exists (1.4).
+npm workspaces `frontend/`, `backend/`, `shared/`; strict tsconfig bases; ESLint flat config + Prettier; Vitest; `docker-compose.dev.yml` (MongoDB 8, single-node replica set so transactions work locally); `.env.example` for each app with placeholders only; `.gitignore` covering `.env*`, `*.csv` key files, dumps and `padron_*.json`/`padron_*.csv`; `AGENTS.md`/`CLAUDE.md`; GitHub Actions `ci.yml` (install, typecheck, lint, test, build) on PRs.
+Done when: `npm install && npm run dev` runs both apps against local Mongo; `npm run lint && npm run typecheck && npm test && npm run build` pass locally. `ci.yml` is written now and first runs when the remote exists (1.4).
 
 **1.2 Backend skeleton**
 Express 5 app factory `createApp()` (testable without listening). Config loaded and validated by zod at boot (fail fast). Mongoose connection with retry. `helmet` with strict defaults. `express-rate-limit` global limiter (memory store; single instance). `pino` logger with redaction of cédula, phone, email, password, cookie and token. Central error handler returning `{error:{code,message,fields}}`. zod `validate()` middleware. `GET /health` (liveness + Mongo ping). `trust proxy` configurable via env (off locally; set for Vercel → Render in 10.1). Module folder convention (`routes/service/model/schemas`). Test harness: `mongodb-memory-server` in replica-set mode plus a per-test DB reset.
@@ -65,9 +65,9 @@ Done when: the shell renders correctly at 360 px and on desktop, and a Playwrigh
 - **Local stand-ins for the cloud services:**
   - `docker-compose.dev.yml` gains an **S3-compatible emulator**: MinIO, or LocalStack/Adobe S3Mock if MinIO's free image is unavailable at implementation time. The backend only speaks the S3 API with a configurable `S3_ENDPOINT` + path-style addressing, so any of them works.
   - An init step creates the three local buckets (`media`, `backups`, `imports`) and allows `http://localhost:3000` for browser PUTs to `imports`.
-  - `backend/scripts/s3-check.ts` (`pnpm --filter backend s3:check`) puts, gets and deletes a test object.
+  - `backend/scripts/s3-check.ts` (`npm run s3:check --workspace=backend`) puts, gets and deletes a test object.
   - `.env.example` files are completed with local values, including Cloudflare's **Turnstile test keys**: site `1x00000000000000000000AA` and secret `1x0000000000000000000000000000000AA`, which always pass.
-  - A root `pnpm dev:up` / `dev:down` starts and stops the local services.
+  - A root `npm run dev:up` / `dev:down` starts and stops the local services.
 - **Git:**
   - **Before `git init`, the owner moves `padron_higuey_mayo2024.json` out of the folder.** A pre-commit check (a simple script run by `lint-staged`/`simple-git-hooks`) refuses files matching `padron_*`, `*.env`, or AWS key CSVs.
   - `git init` on `main`, with a first commit of the docs, `brand/` and the scaffold from 1.1–1.3.
@@ -75,7 +75,7 @@ Done when: the shell renders correctly at 360 px and on desktop, and a Playwrigh
   - `README.md` explains local setup in five commands.
 
 Done when:
-- a fresh clone plus `pnpm i && pnpm dev:up && pnpm dev` gives a working app at `http://localhost:3000` whose `/api/health` reports Mongo and S3 as OK;
+- a fresh clone plus `npm install && npm run dev:up && npm run dev` gives a working app at `http://localhost:3000` whose `/api/health` reports Mongo and S3 as OK;
 - `s3:check` passes against the emulator;
 - a test commit containing a `padron_*.json` file is rejected by the hook;
 - after the owner adds the remote, the first PR shows green CI.
@@ -94,7 +94,7 @@ Done when:
   - batch insert (1,000 rows) into `voters_staging_{id}`;
   - compute the report: accepted, rejected with reasons, warnings, and a diff vs current `voters` (new, moved recinto/colegio, missing, recintos added/removed);
   - `apply()`: upsert, mark missing voters inactive, rebuild `recintos`, refresh member snapshots, drop staging, all idempotent by SHA-256.
-- CLI `pnpm --filter backend voters:import --file <path> [--dry-run] [--apply]`.
+- CLI `npm run voters:import --workspace=backend -- --file <path> [--dry-run] [--apply]`.
 - `backend/scripts/fake-voter-file.ts` writes a synthetic file in **exactly the real JSON shape**, including the real anomalies: 21 % null `apellido2`, `´` and accented names, one recinto name repeated across 7 sectors, stray spaces, about 0.05 % bad check digits, and some voters over 100. Size is configurable: 20k for dev, 181,551 for load checks.
 
 Done when:
@@ -103,8 +103,8 @@ Done when:
 - the **owner runs `--dry-run` against the real file on their machine** (no DB writes) and the report shows **181,551 accepted, 0 rejected, 87 check-digit warnings, 110 recintos, 369 colegios, 80 sectors**.
 
 **2.2 Voter lookup (Consulta de Padrón)**
-`GET /api/voters/:cedula` (permission `voters.lookup`). The response is the padrón card for the fields we have: full name, age, birthday (day and month), sector, recinto, colegio, plus "ya es miembro / nivel / líder" when the caller's scope allows it. Also `GET /api/sectors` (cached tree sector → recintos → colegios with voter counts), used by filters across the app. Every lookup is written to `auditLogs`; a daily per-user quota (setting, default 300) returns 429 when exceeded. Web page `/padron` has a cédula input with mask and a result card.
-Done when: lookup works end to end; the quota blocks the 301st lookup; each lookup produces an audit entry; a Playwright test covers found and not-found.
+`GET /api/voters/:cedula` (permission `voters.lookup`). The response is the padrón card for the fields we have: full name, age, birthday (day and month), sector, recinto, colegio, plus "ya es miembro / nivel / líder" when the caller's scope allows it. Also `GET /api/sectors` (cached tree sector → recintos → colegios with voter counts), used by filters across the app. Lookups are not audited (too frequent and routine for an audit trail entry each), but a daily per-user quota (setting, default 300, counted by its own small collection rather than the audit log) returns 429 when exceeded. Web page `/padron` has a cédula input with mask and a result card.
+Done when: lookup works end to end; the quota blocks the 301st lookup; a Playwright test covers found and not-found.
 
 ---
 
@@ -266,13 +266,13 @@ Done when: e2e with a synthetic 181,551-record file works (upload → progress �
 
 Done when: apply is idempotent; members of moved voters show the new recinto; discard leaves no staging collection or S3 object; everything is audited.
 
-**9.3 Backups and restore**
-- `POST /api/internal/backup` (HMAC-signed with a timestamp, no session) streams every collection except `sessions` as gzipped NDJSON to `S3_BACKUP_BUCKET/YYYY-MM-DD/`, with a manifest (counts, hashes).
-- `backend/scripts/restore.ts --date` restores into a target database.
-- An admin widget shows the last backup time and the database storage used (warns at 80 % of 512 MB).
-- `.github/workflows/backup.yml` (daily at 03:00 AST + manual run) is written now; its secrets and schedule are activated in 10.1.
+**9.3 Backups and restore** _(amended from the original plan: one manual backup, not a daily scheduled one — see below)_
+- `POST /api/backups` (superadmin only, `backups.manage`) streams every collection except `sessions` as gzipped NDJSON to `S3_BACKUP_BUCKET/backup/`, with a manifest (counts, hashes). `GET /api/backups/status` returns the last backup's manifest and the database storage used.
+- **Exactly one backup is kept.** Each run deletes the previous backup's objects only after every collection has dumped successfully, then writes the new ones, then writes the manifest last — so a failure partway through never destroys the previous backup and never leaves a partial one that a status check or restore would mistake for complete.
+- **Manual only, triggered by the superadmin from `/admin/respaldos`.** There is no daily cron, no HMAC-signed unauthenticated endpoint and no `backup.yml` GitHub Actions workflow: the owner decided a single backup, made whenever they choose, is enough for this campaign's size. The admin widget shows the last backup's time and size, a "Crear respaldo ahora" button, and the database storage used (warns at 80 % of 512 MB).
+- `backend/scripts/restore.ts --target-uri <uri>` restores the kept backup into a target database.
 
-Done when: locally, a backup to the emulator restored into a fresh database reproduces the counts exactly; a bad HMAC signature is rejected.
+Done when: locally, a backup to the emulator restored (via `restore.ts`) into a fresh database reproduces the counts exactly; a non-superadmin is refused `POST /api/backups`.
 
 **9.4 Security review (local)**
 A checklist pass with evidence:
@@ -294,13 +294,13 @@ Done when: every item is marked pass or not-applicable with a note, and findings
 ## PHASE 10 — Deployment and launch
 
 **10.1 Cloud setup and first production deploy**
-Follow `HERIBERTO_ARCHITECTURE.md` Appendix A for **prod** (a cloud dev/staging environment is optional and not planned): Atlas M0, S3 buckets + IAM + CORS, Render, Vercel, domain DNS for heribertova.do, a real Turnstile widget, GitHub secrets, and activate `backup.yml`. Set `trust proxy` for Vercel → Render. A temporary `whoami-ip` endpoint checks that the real client IP arrives through the Vercel rewrite, so per-IP rate limits work; remove it afterwards.
+Follow `HERIBERTO_ARCHITECTURE.md` Appendix A for **prod** (a cloud dev/staging environment is optional and not planned): Atlas M0, S3 buckets + IAM + CORS, Render, Vercel, domain DNS for heribertova.do, a real Turnstile widget, and GitHub secrets. Set `trust proxy` for Vercel → Render. A temporary `whoami-ip` endpoint checks that the real client IP arrives through the Vercel rewrite, so per-IP rate limits work; remove it afterwards.
 Done when:
 - `https://heribertova.do/api/health` returns OK through Vercel → Render → Atlas;
 - `s3:check` passes against prod with the least-privilege key;
 - a presigned PUT from `https://heribertova.do` to the imports bucket succeeds (CORS);
 - the client IP seen by the API matches the caller;
-- the first scheduled backup lands in S3;
+- a manually triggered `POST /api/backups` against prod lands in the backups bucket;
 - the Atlas/S3/IAM least-privilege items from 9.4 are verified.
 
 **10.2 Load sanity and go-live**

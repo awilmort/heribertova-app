@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   'people.export',
   'leaders.nominate',
   'leaders.promoteManual',
+  'recintos.viewOwn',
   'recintos.assignCoordinator',
   'users.manage',
   'users.resetPassword',
@@ -23,6 +24,7 @@ export const PERMISSIONS = [
   'reports.view',
   'settings.manage',
   'audit.view',
+  'backups.manage',
 ] as const;
 
 export const permissionSchema = z.enum(PERMISSIONS);
@@ -44,6 +46,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     'people.export',
     'leaders.nominate',
     'leaders.promoteManual',
+    'recintos.viewOwn',
     'recintos.assignCoordinator',
     'users.manage',
     'users.resetPassword',
@@ -58,6 +61,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     'people.validate',
     'people.export',
     'leaders.nominate',
+    'recintos.viewOwn',
     'users.resetPassword',
     'dashboards.general',
     'reports.view',
@@ -68,8 +72,15 @@ export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     'people.update',
     'people.delete',
     'leaders.nominate',
+    'recintos.viewOwn',
   ],
-  aspiring_leader: ['voters.lookup', 'people.create', 'people.update', 'people.delete'],
+  aspiring_leader: [
+    'voters.lookup',
+    'people.create',
+    'people.update',
+    'people.delete',
+    'recintos.viewOwn',
+  ],
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {
