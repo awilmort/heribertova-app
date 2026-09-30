@@ -36,15 +36,24 @@ export type AppointUserRequest = z.infer<typeof appointUserRequestSchema>;
 export const appointUserResponseSchema = z.object({ id: z.string() });
 export type AppointUserResponse = z.infer<typeof appointUserResponseSchema>;
 
-/** `PATCH /api/users/:id`: activate/deactivate, and/or set a recinto coordinator's `recintoScopes`. */
+/**
+ * `PATCH /api/users/:id`: activate/deactivate, set a recinto coordinator's `recintoScopes`, and/or
+ * change `role` — moving an existing login (a team leader, an aspirant, or the other coordinator
+ * role) straight to a coordinator role, superadmin-only (the server enforces this, not this schema).
+ * Never `team_leader`/`aspiring_leader`: stepping back down that ladder stays `POST
+ * /api/promotions/:personId/demote`'s job, which also keeps its leadership-event history.
+ */
 export const updateUserRequestSchema = z
   .object({
     isActive: z.boolean().optional(),
     recintoScopes: z.array(z.string()).optional(),
+    role: appointableRoleSchema.optional(),
   })
-  .refine((data) => data.isActive !== undefined || data.recintoScopes !== undefined, {
-    message: 'Debe indicar al menos un cambio.',
-  });
+  .refine(
+    (data) =>
+      data.isActive !== undefined || data.recintoScopes !== undefined || data.role !== undefined,
+    { message: 'Debe indicar al menos un cambio.' },
+  );
 export type UpdateUserRequest = z.infer<typeof updateUserRequestSchema>;
 
 export const userListQuerySchema = paginationQuerySchema.extend({

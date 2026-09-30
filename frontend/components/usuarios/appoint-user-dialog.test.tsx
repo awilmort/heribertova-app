@@ -186,6 +186,37 @@ describe('AppointUserDialog', () => {
     expect(body.phone).toBeUndefined();
   });
 
+  it('shows the specific field error instead of the generic one', async () => {
+    routeFetch({
+      '/api/me': () => jsonResponse(200, meWithRole('superadmin')),
+      '/api/voters/': () => jsonResponse(200, voterCard),
+      '/api/sectors': () => jsonResponse(200, sectors),
+      '/api/users': () =>
+        jsonResponse(400, {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Los datos enviados no son válidos.',
+            fields: { 'body.cedula': ['Esta persona ya tiene una cuenta de acceso.'] },
+          },
+        }),
+    });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByRole('button', { name: messages.admin.usuarios.appoint }));
+    await user.type(screen.getByLabelText(text.cedulaLabel), '0029876543-2');
+    await user.click(screen.getByRole('button', { name: text.search }));
+    await screen.findByText('PEDRO GÓMEZ');
+    await user.type(screen.getByLabelText(text.phoneLabel), '8095551234');
+
+    await user.click(screen.getByRole('button', { name: text.submit }));
+
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'Esta persona ya tiene una cuenta de acceso.',
+    );
+  });
+
   it('appoints the coordinator and closes the dialog', async () => {
     routeFetch({
       '/api/me': () => jsonResponse(200, meWithRole('superadmin')),

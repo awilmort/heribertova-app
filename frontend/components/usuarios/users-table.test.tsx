@@ -252,6 +252,46 @@ describe('UsersTable', () => {
     ).toBeDefined();
   });
 
+  it('offers "Cambiar rol" only to the superadmin', async () => {
+    routeFetch([
+      ['/api/users', () => jsonResponse(200, usersPage([lockedLeader]))],
+      ['/api/me', () => jsonResponse(200, { ...me, role: 'general_coordinator' })],
+    ]);
+    const user = userEvent.setup();
+    renderTable();
+    await screen.findByText('ANA DÍAZ');
+
+    await user.click(screen.getByRole('button', { name: text.table.actions }));
+
+    expect(screen.queryByRole('menuitem', { name: text.actions.changeRole })).toBeNull();
+  });
+
+  it('changes a role to general coordinator', async () => {
+    routeFetch([
+      ['/api/users/u2', () => jsonResponse(204, null)],
+      ['/api/users', () => jsonResponse(200, usersPage([lockedLeader]))],
+      ['/api/me', () => jsonResponse(200, me)],
+    ]);
+    const user = userEvent.setup();
+    renderTable();
+    await screen.findByText('ANA DÍAZ');
+
+    await user.click(screen.getByRole('button', { name: text.table.actions }));
+    await user.click(await screen.findByRole('menuitem', { name: text.actions.changeRole }));
+    await screen.findByText(messages.admin.usuarios.changeRoleDialog.title('ANA DÍAZ'));
+    await user.click(screen.getByRole('button', { name: text.changeRoleDialog.submit }));
+
+    await vi.waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/users/u2',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ role: 'general_coordinator' }),
+        }),
+      ),
+    );
+  });
+
   it('opens the appoint dialog, backed by the current role for /me', async () => {
     routeFetch([
       ['/api/users', () => jsonResponse(200, usersPage([]))],

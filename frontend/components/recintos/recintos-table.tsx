@@ -2,6 +2,7 @@
 
 import type { RecintoCoverageItem } from '@heribertova/shared';
 import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { AssignCoordinatorsDialog } from '@/components/recintos/assign-coordinators-dialog';
@@ -199,7 +200,11 @@ export function RecintosTable() {
             <tbody>
               {sorted.map((item) => (
                 <tr key={item.key} className="border-t">
-                  <td className="px-3 py-2">{item.name}</td>
+                  <td className="px-3 py-2">
+                    <Link href={`/recintos/${item.key}`} className="hover:underline">
+                      {item.name}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">{item.sector}</td>
                   <td className="px-3 py-2">{item.voterCount}</td>
                   <td className="px-3 py-2">{item.memberCount}</td>

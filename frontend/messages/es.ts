@@ -252,6 +252,11 @@ export const messages = {
     filters: {
       levelLabel: 'Nivel',
       levelAll: 'Todos',
+      nameLabel: 'Nombre',
+      namePlaceholder: 'Buscar por nombre…',
+      sortLabel: 'Ordenar por',
+      sortName: 'Nombre',
+      sortMemberCount: 'Cantidad de miembros',
     },
     card: {
       memberCount: (count: number, goal: number) => `${count} de ${goal} miembros`,
@@ -373,6 +378,10 @@ export const messages = {
     },
     success: {
       assigned: 'Los coordinadores fueron actualizados.',
+    },
+    detail: {
+      title: 'Detalle de recinto',
+      back: '← Volver a recintos',
     },
   },
   reportes: {
@@ -590,6 +599,7 @@ export const messages = {
         resetPassword: 'Restablecer contraseña',
         unlock: 'Desbloquear',
         editScopes: 'Editar recintos',
+        changeRole: 'Cambiar rol',
       },
       confirm: {
         deactivate: (name: string) => `¿Desactivar a ${name}? No podrá iniciar sesión.`,
@@ -625,6 +635,12 @@ export const messages = {
         title: (name: string) => `Recintos de ${name}`,
         submit: 'Guardar',
         saving: 'Guardando…',
+      },
+      changeRoleDialog: {
+        title: (name: string) => `Cambiar el rol de ${name}`,
+        submit: 'Guardar',
+        saving: 'Guardando…',
+        cancel: 'Cancelar',
       },
     },
     auditoria: {

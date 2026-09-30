@@ -31,6 +31,18 @@ import { messages } from '@/messages/es';
 const text = messages.admin.usuarios.appointDialog;
 
 /**
+ * The server's top-level message ("Los datos enviados no son válidos.") is the same for every
+ * validation failure; the specific reason (e.g. "Esta persona ya tiene una cuenta de acceso.") lives
+ * in `fields` instead. This form has no single input to attach a field error to, so it shows those
+ * specific messages in place of the generic one.
+ */
+function appointErrorMessage(error: Error | null): string {
+  if (!(error instanceof ApiError)) return messages.errors.generic;
+  const fieldMessages = error.fields ? Object.values(error.fields).flat() : [];
+  return fieldMessages.length > 0 ? fieldMessages.join(' ') : error.message;
+}
+
+/**
  * "Nombrar coordinador" (plan 4.3): looks a cédula up in the padrón (`GET /api/voters/:cedula`,
  * plan 2.2, reused rather than duplicated), then appoints them with `POST /api/users`. `role` only
  * offers `general_coordinator` to a superadmin: a general coordinator cannot appoint a peer, and the
@@ -211,9 +223,7 @@ export function AppointUserDialog() {
 
             {appoint.isError && (
               <p role="alert" className="text-sm text-destructive">
-                {appoint.error instanceof ApiError
-                  ? appoint.error.message
-                  : messages.errors.generic}
+                {appointErrorMessage(appoint.error)}
               </p>
             )}
 

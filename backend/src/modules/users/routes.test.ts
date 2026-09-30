@@ -12,7 +12,7 @@ import { useTestDatabase } from '../../../test/database';
 import { importFakePadron } from '../../../test/padron';
 import { createTestLogin, createTestPerson, createTestUser } from '../../../test/users';
 import { AuditLogModel } from '../audit/model';
-import type { Person } from '../people/model';
+import { PersonModel, type Person } from '../people/model';
 import { RecintoModel } from '../recintos/model';
 import { SessionModel } from '../sessions/model';
 import { createSession, resolveSession } from '../sessions/service';
@@ -478,6 +478,105 @@ describe('PATCH /api/users/:id', () => {
       await expect(UserModel.findById(superadmin._id).lean()).resolves.toMatchObject({
         isActive: true,
       });
+    });
+  });
+
+  describe('role', () => {
+    it("lets the superadmin move a team leader straight to general coordinator, syncing the person's level", async () => {
+      const { token } = await caller('superadmin');
+      const user = await target('team_leader');
+
+      expect((await patch(token, user.id, { role: 'general_coordinator' })).status).toBe(204);
+
+      await expect(UserModel.findById(user._id).lean()).resolves.toMatchObject({
+        role: 'general_coordinator',
+      });
+      await expect(PersonModel.findById(user.personId).lean()).resolves.toMatchObject({
+        level: 'coordinator',
+      });
+    });
+
+    it('requires recintoScopes to move someone to recinto coordinator', async () => {
+      const { token } = await caller('superadmin');
+      const user = await target('aspiring_leader');
+
+      const res = await patch(token, user.id, { role: 'recinto_coordinator' });
+
+      expectError(res, 400, 'VALIDATION_ERROR');
+      expect(apiErrorBodySchema.parse(res.body).error.fields).toEqual({
+        'body.recintoScopes': ['Indique al menos un recinto para un coordinador de recinto.'],
+      });
+    });
+
+    it('moves someone to recinto coordinator given recintoScopes', async () => {
+      const { token } = await caller('superadmin');
+      const user = await target('aspiring_leader');
+      await RecintoModel.create({
+        _id: RECINTO,
+        name: 'LICEO JUAN PABLO DUARTE',
+        sector: 'CENTRO CIUDAD',
+        colegios: [1],
+        voterCount: 1,
+      });
+
+      const res = await patch(token, user.id, {
+        role: 'recinto_coordinator',
+        recintoScopes: [RECINTO],
+      });
+
+      expect(res.status).toBe(204);
+      await expect(UserModel.findById(user._id).lean()).resolves.toMatchObject({
+        role: 'recinto_coordinator',
+        recintoScopes: [RECINTO],
+      });
+    });
+
+    it('clears recintoScopes when moving a recinto coordinator to general coordinator', async () => {
+      const { token } = await caller('superadmin');
+      const user = await target('recinto_coordinator', { recintoKey: RECINTO });
+      await UserModel.updateOne({ _id: user._id }, { recintoScopes: [RECINTO] });
+
+      expect((await patch(token, user.id, { role: 'general_coordinator' })).status).toBe(204);
+
+      await expect(UserModel.findById(user._id).lean()).resolves.toMatchObject({
+        role: 'general_coordinator',
+        recintoScopes: [],
+      });
+    });
+
+    it('refuses a general coordinator changing anyone’s role, even one they outrank', async () => {
+      const { token } = await caller('general_coordinator');
+      const user = await target('team_leader');
+
+      expectError(
+        await patch(token, user.id, { role: 'recinto_coordinator', recintoScopes: [RECINTO] }),
+        403,
+        'FORBIDDEN',
+        'Solo el superadministrador puede cambiar el rol de un usuario.',
+      );
+      await expect(UserModel.findById(user._id).lean()).resolves.toMatchObject({
+        role: 'team_leader',
+      });
+    });
+
+    it('records the role change in the audit log', async () => {
+      const { user: admin, token } = await caller('superadmin');
+      const user = await target('team_leader');
+
+      await patch(token, user.id, { role: 'general_coordinator' });
+
+      const entries = await AuditLogModel.find().lean();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({
+        actorUserId: admin._id,
+        action: 'user.updated',
+        entity: 'user',
+        entityId: user._id,
+      });
+      const masked = `${user.username.slice(0, 3)}-*******-${user.username.slice(-1)}`;
+      expect(entries[0]?.summary).toBe(
+        `Cambió el rol de ${masked} de líder de equipo a coordinador(a) general.`,
+      );
     });
   });
 

@@ -1,12 +1,13 @@
 'use client';
 
-import type { LeaderLevel, LeaderListItem } from '@heribertova/shared';
+import type { LeaderLevel, LeaderListItem, LeaderSort } from '@heribertova/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { NominateAspirantDialog } from '@/components/lideres/nominate-aspirant-dialog';
 import { PromoteLeaderDialog } from '@/components/lideres/promote-leader-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { NativeSelect } from '@/components/ui/native-select';
 import { usePermission } from '@/lib/permissions';
 import { api, exportPeopleXlsxUrl } from '@/lib/api';
@@ -22,12 +23,15 @@ export function LeadersList() {
   const canPromote = usePermission('leaders.promoteManual');
   const canExport = usePermission('people.export');
   const [level, setLevel] = useState<LeaderLevel | ''>('');
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState<LeaderSort>('name');
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [promoting, setPromoting] = useState<LeaderListItem | null>(null);
 
+  const filters = { level: level || undefined, q: q.trim() || undefined, sort };
   const { data, isPending, isError } = useQuery({
-    queryKey: ['leaders', level],
-    queryFn: () => api.listLeaders({ level: level || undefined }),
+    queryKey: ['leaders', filters],
+    queryFn: () => api.listLeaders(filters),
   });
 
   function toggle(id: string) {
@@ -42,16 +46,35 @@ export function LeadersList() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <Field label={text.filters.levelLabel}>
-          <NativeSelect
-            value={level}
-            onChange={(event) => setLevel(event.target.value as LeaderLevel | '')}
-          >
-            <option value="">{text.filters.levelAll}</option>
-            <option value="aspiring_leader">{messages.levels.aspiring_leader}</option>
-            <option value="team_leader">{messages.levels.team_leader}</option>
-          </NativeSelect>
-        </Field>
+        <div className="flex flex-wrap gap-4">
+          <Field label={text.filters.nameLabel}>
+            <Input
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder={text.filters.namePlaceholder}
+              className="sm:w-64"
+            />
+          </Field>
+          <Field label={text.filters.levelLabel}>
+            <NativeSelect
+              value={level}
+              onChange={(event) => setLevel(event.target.value as LeaderLevel | '')}
+            >
+              <option value="">{text.filters.levelAll}</option>
+              <option value="aspiring_leader">{messages.levels.aspiring_leader}</option>
+              <option value="team_leader">{messages.levels.team_leader}</option>
+            </NativeSelect>
+          </Field>
+          <Field label={text.filters.sortLabel}>
+            <NativeSelect
+              value={sort}
+              onChange={(event) => setSort(event.target.value as LeaderSort)}
+            >
+              <option value="name">{text.filters.sortName}</option>
+              <option value="memberCount">{text.filters.sortMemberCount}</option>
+            </NativeSelect>
+          </Field>
+        </div>
         <div className="flex items-end gap-2">
           {canExport && (
             <Button asChild variant="outline">

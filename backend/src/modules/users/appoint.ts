@@ -1,4 +1,4 @@
-import { outranks, type AppointableRole, type AppointUserRequest } from '@heribertova/shared';
+import { outranks, type AppointUserRequest } from '@heribertova/shared';
 import mongoose, { type ClientSession, type Types } from 'mongoose';
 import { AppError } from '../../lib/errors';
 import { audit, type Actor } from '../audit/service';
@@ -6,13 +6,8 @@ import { PersonModel, type Person } from '../people/model';
 import { RecintoModel } from '../recintos/model';
 import { assertKnownRecintos } from '../recintos/validate';
 import { VoterModel } from '../voters/model';
-import { createLoginForPerson } from './service';
+import { createLoginForPerson, ROLE_LABELS } from './service';
 import { UserModel, type UserDocument } from './model';
-
-const ROLE_LABELS: Record<AppointableRole, string> = {
-  general_coordinator: 'coordinador(a) general',
-  recinto_coordinator: 'coordinador(a) de recinto',
-};
 
 /**
  * The person behind `request.cedula`: an existing `people` record (a member appointed to lead), or

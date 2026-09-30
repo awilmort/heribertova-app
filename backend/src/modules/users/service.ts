@@ -15,9 +15,19 @@ import { audit, type Actor } from '../audit/service';
 import { PersonModel, type Person } from '../people/model';
 import { assertInScope } from '../people/scope';
 import { assertKnownRecintos } from '../recintos/validate';
-import { revokeUserSessions } from '../sessions/service';
+import { flagSessionsStale, revokeUserSessions } from '../sessions/service';
 import { defaultPassword, isBirthDatePassword } from './defaultPassword';
 import { UserModel, type User, type UserDocument } from './model';
+
+/** Spanish label for every login role, including `superadmin` (never itself a target of an
+ * appointment or a role change, but still shown as the "from" side of one). */
+export const ROLE_LABELS: Record<Role, string> = {
+  superadmin: 'superadministrador(a)',
+  general_coordinator: 'coordinador(a) general',
+  recinto_coordinator: 'coordinador(a) de recinto',
+  team_leader: 'líder de equipo',
+  aspiring_leader: 'aspirante a líder',
+};
 
 /** What a login needs from its person: the cédula (username) and the voter's birth date. */
 export type LoginPerson = Pick<Person, '_id' | 'cedula'> & {
@@ -222,9 +232,13 @@ export async function unlockUser(actor: Actor, userId: string): Promise<void> {
 }
 
 /**
- * `PATCH /api/users/:id` (plan 4.3): activates/deactivates a user and/or sets a recinto
- * coordinator's `recintoScopes`. Restricted to `users.manage` (superadmin, general coordinator),
- * both of whom see every user, so unlike `unlockUser` this only needs the rank check, not scope.
+ * `PATCH /api/users/:id` (plan 4.3, plus this conversation's "change role"): activates/deactivates a
+ * user, sets a recinto coordinator's `recintoScopes`, and/or moves an existing login straight to a
+ * coordinator role. Restricted to `users.manage` (superadmin, general coordinator), both of whom see
+ * every user, so unlike `unlockUser` this only needs the rank check, not scope — except `role`,
+ * which only the superadmin may set, whatever role the caller has: handing out (or taking away)
+ * coordinator access is a bigger deal than the isActive/recintoScopes changes a general coordinator
+ * already makes on their own coordinators.
  */
 export async function updateUser(
   actor: Actor,
@@ -235,16 +249,35 @@ export async function updateUser(
   if (!outranks(actor.user.role, user.role)) {
     throw new AppError(403, 'FORBIDDEN', 'No puede modificar este usuario.');
   }
-  if (patch.recintoScopes !== undefined && user.role !== 'recinto_coordinator') {
+  if (patch.role !== undefined && actor.user.role !== 'superadmin') {
+    throw new AppError(
+      403,
+      'FORBIDDEN',
+      'Solo el superadministrador puede cambiar el rol de un usuario.',
+    );
+  }
+
+  const nextRole = patch.role ?? user.role;
+  if (patch.recintoScopes !== undefined && nextRole !== 'recinto_coordinator') {
     throw new AppError(400, 'VALIDATION_ERROR', 'Los datos enviados no son válidos.', {
       'body.recintoScopes': ['Solo un coordinador de recinto tiene recintos asignados.'],
+    });
+  }
+  if (
+    patch.role !== undefined &&
+    patch.role !== user.role &&
+    patch.role === 'recinto_coordinator' &&
+    (patch.recintoScopes ?? []).length === 0
+  ) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Los datos enviados no son válidos.', {
+      'body.recintoScopes': ['Indique al menos un recinto para un coordinador de recinto.'],
     });
   }
   if (patch.recintoScopes !== undefined) {
     await assertKnownRecintos(patch.recintoScopes, 'body.recintoScopes');
   }
 
-  const changes: Partial<Pick<User, 'isActive' | 'recintoScopes'>> = {};
+  const changes: Partial<Pick<User, 'isActive' | 'recintoScopes' | 'role'>> = {};
   const summaryParts: string[] = [];
   if (patch.isActive !== undefined) {
     changes.isActive = patch.isActive;
@@ -258,9 +291,26 @@ export async function updateUser(
     changes.recintoScopes = patch.recintoScopes;
     summaryParts.push(`Actualizó los recintos asignados a ${user.username}.`);
   }
+  if (patch.role !== undefined && patch.role !== user.role) {
+    const newRole = patch.role;
+    changes.role = newRole;
+    // recintoScopes only make sense for a recinto_coordinator; moving away from that role without
+    // an explicit recintoScopes patch drops the now-stale ones instead of leaving them behind.
+    if (newRole !== 'recinto_coordinator' && patch.recintoScopes === undefined) {
+      changes.recintoScopes = [];
+    }
+    summaryParts.push(
+      `Cambió el rol de ${user.username} de ${ROLE_LABELS[user.role]} a ${ROLE_LABELS[newRole]}.`,
+    );
+  }
 
   await mongoose.connection.transaction(async (session) => {
     await UserModel.updateOne({ _id: user._id }, changes, { session });
+    if (changes.role !== undefined) {
+      // Both coordinator roles share the same `people.level` (HERIBERTO_ARCHITECTURE.md §5).
+      await PersonModel.updateOne({ _id: user.personId }, { level: 'coordinator' }, { session });
+      await flagSessionsStale(user._id, session);
+    }
     await audit(
       actor,
       {

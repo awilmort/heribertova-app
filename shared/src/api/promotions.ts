@@ -50,9 +50,20 @@ export const manualPromotionRequestSchema = z.object({
 });
 export type ManualPromotionRequest = z.infer<typeof manualPromotionRequestSchema>;
 
-/** `GET /api/leaders?level=` (plan 6.3): defaults to both levels; scoped like everything else in
- * `people` (`scopeFilter`), so a team leader only ever sees their own subtree. */
-export const leadersQuerySchema = z.object({ level: leaderLevelSchema.optional() });
+/** How `GET /api/leaders` orders its results: alphabetically (the default), or by `memberCount`,
+ * highest first. */
+export const LEADER_SORTS = ['name', 'memberCount'] as const;
+export const leaderSortSchema = z.enum(LEADER_SORTS);
+export type LeaderSort = z.infer<typeof leaderSortSchema>;
+
+/** `GET /api/leaders?level=&q=&sort=` (plan 6.3): defaults to both levels, every leader, name order;
+ * scoped like everything else in `people` (`scopeFilter`), so a team leader only ever sees their own
+ * subtree. `q` matches `fullName`, same as `GET /api/people`'s own search. */
+export const leadersQuerySchema = z.object({
+  level: leaderLevelSchema.optional(),
+  q: z.string().trim().min(1).max(100).optional(),
+  sort: leaderSortSchema.optional(),
+});
 export type LeadersQuery = z.infer<typeof leadersQuerySchema>;
 
 /** One direct member, for a leader's expandable team on `/lideres`. */

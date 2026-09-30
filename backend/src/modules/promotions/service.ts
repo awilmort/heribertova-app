@@ -8,6 +8,7 @@ import {
 } from '@heribertova/shared';
 import mongoose, { type ClientSession, type QueryFilter, type Types } from 'mongoose';
 import { AppError } from '../../lib/errors';
+import { escapeRegExp } from '../../lib/text';
 import { audit, type Actor } from '../audit/service';
 import { PersonModel, type Person } from '../people/model';
 import { checkEligibility } from '../people/policy';
@@ -430,6 +431,9 @@ export async function listLeaders(actor: Actor, query: LeadersQuery): Promise<Le
     { level: { $in: levels }, deletedAt: null },
     scopeFilter(actor.user),
   ];
+  if (query.q) {
+    conditions.push({ 'voterSnapshot.fullName': new RegExp(escapeRegExp(query.q), 'i') });
+  }
   const leaders = await PersonModel.find({ $and: conditions })
     .sort({ 'voterSnapshot.fullName': 1 })
     .lean();
@@ -460,6 +464,13 @@ export async function listLeaders(actor: Actor, query: LeadersQuery): Promise<Le
       };
     }),
   );
+
+  // The initial query already sorted by name; re-sort in memory for memberCount, since it is only
+  // known once each leader's team has been counted above — this list is small enough to embed
+  // (see this function's doc comment) rather than push the count into the database query itself.
+  if (query.sort === 'memberCount') {
+    items.sort((a, b) => b.memberCount - a.memberCount);
+  }
 
   return { items };
 }

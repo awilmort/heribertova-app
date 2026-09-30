@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { AppointUserDialog } from '@/components/usuarios/appoint-user-dialog';
+import { ChangeRoleDialog } from '@/components/usuarios/change-role-dialog';
 import { UserScopesDialog } from '@/components/usuarios/user-scopes-dialog';
 import {
   DropdownMenu,
@@ -29,10 +30,12 @@ function optionalBoolean(value: TriState): boolean | undefined {
  * per-row actions (activate/deactivate, reset password, unlock, edit recintos). */
 export function UsersTable() {
   const queryClient = useQueryClient();
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.me });
   const [role, setRole] = useState<Role | ''>('');
   const [isActive, setIsActive] = useState<TriState>('all');
   const [usingDefaultPassword, setUsingDefaultPassword] = useState<TriState>('all');
   const [editingScopesFor, setEditingScopesFor] = useState<UserSummary | null>(null);
+  const [changingRoleFor, setChangingRoleFor] = useState<UserSummary | null>(null);
 
   const filters = {
     role: role || undefined,
@@ -177,7 +180,9 @@ export function UsersTable() {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onSelect={() => {
-                              if (window.confirm(text.confirm.resetPassword(user.person.fullName))) {
+                              if (
+                                window.confirm(text.confirm.resetPassword(user.person.fullName))
+                              ) {
                                 resetPassword.mutate(user.id);
                               }
                             }}
@@ -200,6 +205,11 @@ export function UsersTable() {
                               {text.actions.editScopes}
                             </DropdownMenuItem>
                           )}
+                          {me?.role === 'superadmin' && (
+                            <DropdownMenuItem onSelect={() => setChangingRoleFor(user)}>
+                              {text.actions.changeRole}
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
@@ -216,6 +226,15 @@ export function UsersTable() {
           user={editingScopesFor}
           onOpenChange={(open) => {
             if (!open) setEditingScopesFor(null);
+          }}
+        />
+      )}
+
+      {changingRoleFor && (
+        <ChangeRoleDialog
+          user={changingRoleFor}
+          onOpenChange={(open) => {
+            if (!open) setChangingRoleFor(null);
           }}
         />
       )}

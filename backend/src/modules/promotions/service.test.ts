@@ -116,6 +116,40 @@ describe('GET /api/leaders', () => {
     expect(res.status).toBe(200);
     expect((res.body as { items: unknown[] }).items).toHaveLength(0);
   });
+
+  it('filters by name (q)', async () => {
+    const { token } = await caller('general_coordinator');
+    await nominateVoters(token, 72, 73, 74);
+    const nominee = await voterAt(72);
+    const searchTerm = nominee.fullName.split(' ')[0];
+
+    const res = await getLeaders(token, `?q=${encodeURIComponent(searchTerm ?? '')}`);
+
+    expect(res.status).toBe(200);
+    const cedulas = (res.body as { items: { cedula: string }[] }).items.map((item) => item.cedula);
+    expect(cedulas).toEqual([nominee._id]);
+  });
+
+  it('sorts by member count, highest first', async () => {
+    // Two different nominators: a nominator can have only one open aspirant at a time. Both are
+    // general coordinators, so either one's own scope already covers everyone for the check below.
+    const { token: nominatorA } = await caller('general_coordinator');
+    const { token: nominatorB } = await caller('general_coordinator');
+    await nominateVoters(nominatorA, 0, 1, 2); // 2 initial members
+    const biggerTeam = await nominateVoters(nominatorB, 3, 4, 5); // also 2, plus one more below
+    const { personId } = biggerTeam.body as { personId: string };
+    await createTestPerson({
+      registeredBy: new Types.ObjectId(),
+      leaderId: new Types.ObjectId(personId),
+    });
+
+    const res = await getLeaders(nominatorA, '?sort=memberCount');
+
+    expect(res.status).toBe(200);
+    const items = (res.body as { items: { id: string; memberCount: number }[] }).items;
+    expect(items[0]).toMatchObject({ id: personId, memberCount: 3 });
+    expect(items[1]?.memberCount).toBe(2);
+  });
 });
 
 describe('POST /api/promotions/nominations', () => {
