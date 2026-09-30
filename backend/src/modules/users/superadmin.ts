@@ -1,12 +1,12 @@
 import type { SetupSuperadminRequest } from '@heribertova/shared';
 import mongoose, { Types } from 'mongoose';
-import { slugify } from '../../lib/text';
 import { hashPassword } from '../../lib/password';
 import { encryptSecret } from '../../lib/secretBox';
 import { generateTotpSecret } from '../../lib/totp';
 import { AuditLogModel } from '../audit/model';
 import { audit } from '../audit/service';
 import { PersonModel } from '../people/model';
+import { recintoKeyOf } from '../voters/voterFile';
 import { UserModel, type UserDocument } from './model';
 import { newPasswordProblem } from './service';
 
@@ -81,7 +81,7 @@ export async function setupSuperadmin(
             cedula: input.cedula,
             voterSnapshot: {
               fullName: input.fullName,
-              recintoKey: slugify(input.recintoName),
+              recintoKey: recintoKeyOf(input.recintoName, input.sector),
               recintoName: input.recintoName,
               colegioId: 0,
               sector: input.sector,

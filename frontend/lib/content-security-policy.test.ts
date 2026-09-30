@@ -38,4 +38,13 @@ describe('buildContentSecurityPolicy', () => {
       "'unsafe-inline'",
     );
   });
+
+  it('allows connecting to the padrón import bucket: the local emulator in dev, AWS S3 in production', () => {
+    expect(directive(buildContentSecurityPolicy('n', true), 'connect-src')).toBe(
+      "'self' http://localhost:9000",
+    );
+    expect(directive(buildContentSecurityPolicy('n', false), 'connect-src')).toBe(
+      "'self' https://*.s3.us-east-1.amazonaws.com",
+    );
+  });
 });
