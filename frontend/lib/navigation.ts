@@ -9,6 +9,7 @@ import {
   Home,
   MapPin,
   Search,
+  Settings,
   Upload,
   Users,
   type LucideIcon,
@@ -71,6 +72,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: messages.nav.respaldos,
     icon: DatabaseBackup,
     permission: 'backups.manage',
+  },
+  {
+    href: '/admin/configuracion',
+    label: messages.nav.configuracion,
+    icon: Settings,
+    permission: 'settings.manage',
   },
 ];
 

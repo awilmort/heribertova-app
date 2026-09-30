@@ -157,6 +157,35 @@ describe('LoginForm', () => {
     expect(screen.getByLabelText(messages.auth.totp.codeLabel)).toBeDefined();
   });
 
+  it('shows the enrollment QR only the first time (when the 202 includes it)', async () => {
+    respond(202, {
+      totpRequired: true,
+      enrollment: { secret: 'JBSWY3DPEHPK3PXP', qrDataUrl: 'data:image/png;base64,abc' },
+    });
+    renderForm();
+    const user = await fillCredentials();
+    await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
+
+    expect(await screen.findByAltText(messages.auth.totp.enrollment.qrAlt)).toHaveProperty(
+      'src',
+      'data:image/png;base64,abc',
+    );
+    expect(screen.getByText('JBSWY3DPEHPK3PXP')).toBeDefined();
+    // The plain "enter your code" copy is skipped in favor of the enrollment instructions.
+    expect(screen.queryByText(messages.auth.totp.subtitle)).toBeNull();
+  });
+
+  it('skips the QR on an ordinary TOTP challenge (already enrolled)', async () => {
+    respond(202, { totpRequired: true });
+    renderForm();
+    const user = await fillCredentials();
+    await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
+
+    await screen.findByLabelText(messages.auth.totp.codeLabel);
+    expect(screen.queryByAltText(messages.auth.totp.enrollment.qrAlt)).toBeNull();
+    expect(screen.getByText(messages.auth.totp.subtitle)).toBeDefined();
+  });
+
   it('returns to the credentials step when the TOTP challenge expired', async () => {
     respond(202, { totpRequired: true });
     renderForm();

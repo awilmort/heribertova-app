@@ -10,6 +10,7 @@ export * from './api/pagination';
 export * from './api/people';
 export * from './api/promotions';
 export * from './api/recintos';
+export * from './api/setup';
 export * from './api/users';
 export * from './api/voters';
 export * from './audit';

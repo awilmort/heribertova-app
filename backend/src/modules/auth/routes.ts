@@ -6,6 +6,7 @@ import {
   type TotpVerifyRequest,
 } from '@heribertova/shared';
 import type { Request, Response } from 'express';
+import QRCode from 'qrcode';
 import { AppError } from '../../lib/errors';
 import { decryptSecret } from '../../lib/secretBox';
 import { matchTotpStep } from '../../lib/totp';
@@ -24,7 +25,13 @@ import {
 import { createSession, deleteSession, markTotpVerified } from '../sessions/service';
 import type { UserDocument } from '../users/model';
 import { authenticate, completeLogin, isLocked, registerFailedAttempt } from './service';
-import { claimTotpStep, requiresTotp, startTotpChallenge, verifyTotpChallenge } from './totp';
+import {
+  claimTotpStep,
+  pendingEnrollment,
+  requiresTotp,
+  startTotpChallenge,
+  verifyTotpChallenge,
+} from './totp';
 
 export interface AuthRoutesOptions {
   /** Failed logins allowed per client IP + cédula (and failed TOTP codes per IP) per 15 minutes. */
@@ -84,7 +91,12 @@ export function createAuthRoutes({
             const challenge = await startTotpChallenge(result.user);
             setTotpChallengeCookie(res, challenge.token, challenge.maxAgeMs);
             req.log.info({ userId: result.user.id }, 'Password accepted, TOTP code required');
-            res.status(202).json({ totpRequired: true } satisfies TotpRequiredResponse);
+
+            const pending = pendingEnrollment(result.user, totpKey);
+            const enrollment = pending
+              ? { secret: pending.secret, qrDataUrl: await QRCode.toDataURL(pending.uri) }
+              : undefined;
+            res.status(202).json({ totpRequired: true, enrollment } satisfies TotpRequiredResponse);
             return;
           }
           await openSession(req, res, result.user);

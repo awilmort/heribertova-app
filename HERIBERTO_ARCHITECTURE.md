@@ -30,7 +30,7 @@ UI text is Spanish (es-DO). Code is English.
 
 | Role key | UI label | LOE equivalent | Logs in | How someone gets it |
 |---|---|---|---|---|
-| `superadmin` | Administrador | — | Yes (strong password + TOTP) | Exactly one user, created by CLI at deploy time |
+| `superadmin` | Administrador | — | Yes (strong password + TOTP) | Exactly one user, created once from `/configuracion-inicial` at deploy time |
 | `general_coordinator` | Coordinador General | Coordinador / Presidente | Yes | Appointed by superadmin |
 | `recinto_coordinator` | Coordinador de Recinto | Presidente CI | Yes | Appointed by superadmin or a general coordinator; scoped to one or more recintos |
 | `team_leader` | Líder de Equipo | Presidente CB | Yes | **Automatic** when an aspirant reaches the threshold (or manual promotion) |
@@ -258,10 +258,10 @@ The server enforces scope on every query and every `:id` route. The UI only hide
   3. After the first login, a **simple, skippable "Cambie su contraseña" prompt** and a persistent banner while the default is still in use.
   4. The admin user list shows who still uses the default.
   5. Login audit.
-  6. The **superadmin never uses a birth-date password**: it gets a strong password plus TOTP and is created by CLI.
+  6. The **superadmin never uses a birth-date password**: it gets a strong password plus TOTP and is created once from `/configuracion-inicial`.
 - **Change password:** at `/perfil`. Minimum 8 characters (14 for the superadmin), it cannot equal the birth date (DDMMYYYY or YYYYMMDD, with or without separators), and it requires the current password. Other sessions end; the current one stays.
 - **Forgot password:** there are no SMS/email costs. The user asks their coordinator, who can **"Restablecer a fecha de nacimiento"**. That resets the password to the default, unlocks the account, revokes sessions and is audited. The caller must have the user in scope and **outrank** them (plan 3.2), so nobody resets a peer or a superior; the superadmin can reset anyone else. The superadmin's own password is never reset to a birth date.
-- **Superadmin second factor (plan 3.3):** a right password answers `202 {totpRequired: true}` with a 5-minute `__Host-totp` challenge cookie, which opens nothing but `POST /auth/totp/verify` (it lives in its own `totpChallenges` collection, never in `sessions`). A valid RFC 6238 code (SHA-1, 6 digits, 30 s, ±1 step) turns it into a session. Each code is accepted once (replay), a challenge takes at most 5 codes (claimed atomically), wrong codes count toward the same progressive lockout as wrong passwords (a right password alone does not reset it), and failed codes are rate-limited per IP. The superadmin is created only by `create-superadmin` (A.3), from the owner's voter record, and enrolls the authenticator app before the account exists.
+- **Superadmin second factor (plan 3.3):** a right password answers `202 {totpRequired: true}` with a 5-minute `__Host-totp` challenge cookie, which opens nothing but `POST /auth/totp/verify` (it lives in its own `totpChallenges` collection, never in `sessions`). A valid RFC 6238 code (SHA-1, 6 digits, 30 s, ±1 step) turns it into a session. Each code is accepted once (replay), a challenge takes at most 5 codes (claimed atomically), wrong codes count toward the same progressive lockout as wrong passwords (a right password alone does not reset it), and failed codes are rate-limited per IP. The superadmin is created once, from `/configuracion-inicial` (A.3): a public but self-limiting page (`GET /setup/status` reports whether it is still open; once the account exists, `POST /setup/superadmin` refuses permanently). A TOTP secret is generated at creation but never shown then — the 202 response above carries it (as a QR code and as text) only the very first time, before any code has ever been accepted, so enrollment happens on that first login instead of a CLI terminal.
 - **Sessions:** a random 256-bit token lives in a `__Host-sid` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/`). Only its SHA-256 is stored in `sessions`. Timeouts: 7 days idle and 30 days absolute (field users on shared phones stay usable), 12 h for superadmin. The token rotates on login and on role change. There are no JWTs in `localStorage`.
 - **CSRF:** SameSite=Lax, plus a required `Origin` check on unsafe methods, plus the `X-Requested-With` header.
 - **Deactivated users** are rejected on their next request, because the session lookup checks `users.isActive`.
@@ -282,6 +282,7 @@ Errors use `{ error: { code, message, fields? } }`; lists use `{ items, page, pa
 | Area | Endpoints |
 |---|---|
 | Auth | `POST /auth/login`, `POST /auth/logout`, `GET /me`, `PUT /me/password`, `POST /auth/totp/verify` (superadmin) |
+| Setup (public, one-time) | `GET /setup/status`, `POST /setup/superadmin` — creates the superadmin; refuses permanently once one exists |
 | Voters | `GET /voters/:cedula` (not audited, daily quota per user), `GET /recintos/:key/voters?filter=all|nonMembers&colegio=&q=&page=` |
 | People | `POST /people/check {cedula}`, `POST /people`, `GET /people?scope=team|subtree|recinto&q=&status=&docStatus=`, `GET /people/:id`, `PATCH /people/:id`, `DELETE /people/:id` (soft) |
 | Photos | `POST /people/:id/photos/:kind` (multipart ≤ 8 MB), `GET /people/:id/photos/:kind` → 302 to a presigned S3 URL (5 min) |
@@ -310,6 +311,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 | Route | Screen | LOE equivalent |
 |---|---|---|
 | `/login` | Cédula (mask `000-0000000-0`), password, "¿Olvidó su contraseña? Contacte a su coordinador" | login |
+| `/configuracion-inicial` | One-time, public: creates the superadmin (§7, A.3.7). Gone for good once the account exists. | — |
 | `/inicio` | Redirects to the role's landing page | — |
 | `/panel` | Leader dashboard: my members, progress to 8 (radial red/amber/green), goal 20, aspirants I nominated, members' birthdays this month, promotion celebration | ci-dashboard |
 | `/panel/general` | Coordinators: coverage by sector → recinto → colegio, leaders' progress, recintos without members, members and voters by **age band** (the file has no sex field), birthdays | dashboard / provincial |
@@ -320,7 +322,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 | `/recintos` | Recintos list with coverage, recintos without members, assign coordinators | recintos-sin-militantes |
 | `/reportes` | Filtered tables with Excel export | reportes |
 | `/perfil` | My data, change password | user-info |
-| `/admin/usuarios`, `/admin/configuracion`, `/admin/auditoria`; `/admin/padron` (voter file import + history) | Admin area | — |
+| `/admin/usuarios`, `/admin/configuracion`, `/admin/auditoria`, `/admin/respaldos`; `/admin/padron` (voter file import + history) | Admin area | — |
 
 `proxy.ts` (Next 16) redirects visitors without a session cookie to `/login`. Real authorization always happens on the API.
 
@@ -443,19 +445,20 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 ### A.3 Render (API)
 1. render.com → sign in with GitHub → **New → Web Service** → pick the repo.
 2. Name `heribertova-api`, region **Virginia (US East)**, branch `main`, **Root Directory** `backend`, runtime Node.
-3. Build command `npm ci && npm run build`; start command `node dist/index.js`.
+3. Build command `npm ci --include=dev && npm run build`; start command `node dist/index.js`. The `--include=dev` is required: with `NODE_ENV=production` set (below), npm's default `omit` config drops devDependencies from `npm ci`, but the build needs them (`esbuild` bundles `dist/`). If a stale build cache makes the flag not take effect, also set the environment variable `NPM_CONFIG_INCLUDE=dev` (below) — that overrides npm's config directly — and redeploy with **Clear build cache & deploy**.
 4. Instance type **Free** for now (Starter at launch, see §13). **Health Check Path** `/health`.
 5. Environment variables:
    - `NODE_ENV=production`
+   - `NPM_CONFIG_INCLUDE=dev` (only needed if the build command's `--include=dev` doesn't take effect, e.g. after a cached build; see step 3)
    - `MONGODB_URI`
    - AWS vars (A.2)
-   - `TOTP_ENC_KEY` (32 random bytes, base64: `openssl rand -base64 32`; keep this value somewhere safe — losing it means re-enrolling the superadmin's TOTP, and it must be the same value the local `superadmin:create` run in step 7 uses)
+   - `TOTP_ENC_KEY` (32 random bytes, base64: `openssl rand -base64 32`; keep this value somewhere safe — losing it means re-enrolling the superadmin's TOTP)
    - `APP_ORIGIN=https://heribertova.do` (the only `Origin` the CSRF guard accepts)
    - optionally `LOGIN_RATE_LIMIT_MAX` (default 10 failed logins per IP + cédula per 15 min)
 
    No session pepper: session tokens are 256 random bits, so their plain SHA-256 is already unguessable (plan 3.1).
 6. Optional custom domain `api.heribertova.do` (CNAME to the `onrender.com` host). The browser does not need it, because traffic goes through Vercel rewrites.
-7. Create the superadmin once from the Render **Shell**: `node dist/scripts/create-superadmin.js`. The owner must be in the padrón, so import it first with the CLI (`voters:import --apply`; the import screen itself needs the superadmin). The script prompts for the cédula and phone, forces a strong password (≥ 14 characters, not the birth date), prints the TOTP QR/URI/secret and asks for a code from the app before creating anything. On the Free plan the Shell is unavailable, so run `npm run superadmin:create --workspace=backend` locally once with the prod `MONGODB_URI` **and the same `TOTP_ENC_KEY` as Render**.
+7. Create the superadmin: once the API and web app are both live, and **before sharing the URL with anyone**, visit `https://heribertova.do/configuracion-inicial` and fill in the one-time setup form (cédula, name, birth date, phone, recinto/sector, password). It does not need the padrón imported first — the owner's details are typed in directly, not looked up — so this can happen before `voters:import --apply`. The form works exactly once: `GET /api/setup/status` reports whether it is still open, and the moment the account exists, every further visit (or `POST`) refuses. No Shell access needed, on the Free plan or otherwise. Afterwards, log in at `/login`: the first login shows the TOTP QR code to scan with an authenticator app (Google Authenticator, Authy…) — enter the code it shows to finish enrolling. That QR is shown only this once; losing the device before enrolling means recreating the account (drop the `users` document and start over, since only one superadmin may exist).
 
 ### A.4 Vercel (web)
 1. vercel.com → sign in with GitHub → **Add New Project** → import the repo, **Root Directory** `frontend`, framework Next.js.

@@ -34,6 +34,9 @@ export function LoginForm({ next }: { next?: string }) {
   const [cedula, setCedula] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  // Set only the first time a superadmin logs in, before any code has ever been confirmed
+  // (`TotpRequiredResponse.enrollment`): the QR to scan instead of a CLI terminal.
+  const [enrollment, setEnrollment] = useState<{ secret: string; qrDataUrl: string } | null>(null);
 
   function goToNext() {
     router.push(safeNextPath(next));
@@ -42,8 +45,12 @@ export function LoginForm({ next }: { next?: string }) {
   const login = useMutation({
     mutationFn: api.login,
     onSuccess: (result) => {
-      if (result.totpRequired) setStep('totp');
-      else goToNext();
+      if (result.totpRequired) {
+        setEnrollment(result.enrollment ?? null);
+        setStep('totp');
+      } else {
+        goToNext();
+      }
     },
   });
 
@@ -56,6 +63,7 @@ export function LoginForm({ next }: { next?: string }) {
       if (error instanceof ApiError && error.code === 'UNAUTHENTICATED') {
         setStep('credentials');
         setPassword('');
+        setEnrollment(null);
       }
     },
   });
@@ -78,10 +86,29 @@ export function LoginForm({ next }: { next?: string }) {
   if (step === 'totp') {
     return (
       <form onSubmit={submitCode} className="flex flex-col gap-4" noValidate>
-        <div className="flex flex-col gap-1">
-          <h2 className="text-base font-medium">{text.totp.title}</h2>
-          <p className="text-sm text-muted-foreground">{text.totp.subtitle}</p>
-        </div>
+        {enrollment ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-base font-medium">{text.totp.enrollment.title}</h2>
+              <p className="text-sm text-muted-foreground">{text.totp.enrollment.instructions}</p>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element -- a one-time data: URI, not a static asset */}
+            <img
+              src={enrollment.qrDataUrl}
+              alt={text.totp.enrollment.qrAlt}
+              className="mx-auto size-48"
+            />
+            <p className="text-center text-xs text-muted-foreground">
+              {text.totp.enrollment.manualLabel}{' '}
+              <code className="font-mono tracking-wide">{enrollment.secret}</code>
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <h2 className="text-base font-medium">{text.totp.title}</h2>
+            <p className="text-sm text-muted-foreground">{text.totp.subtitle}</p>
+          </div>
+        )}
         <div className="flex flex-col gap-2">
           <label htmlFor={codeId} className="text-sm font-medium">
             {text.totp.codeLabel}

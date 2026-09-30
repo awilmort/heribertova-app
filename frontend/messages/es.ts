@@ -33,6 +33,7 @@ export const messages = {
     auditoria: 'Auditoría',
     padronAdmin: 'Importar padrón',
     respaldos: 'Respaldos',
+    configuracion: 'Configuración',
     main: 'Navegación principal',
     openMenu: 'Abrir menú',
     menuTitle: 'Menú',
@@ -59,6 +60,13 @@ export const messages = {
       codeLabel: 'Código',
       verify: 'Verificar',
       verifying: 'Verificando…',
+      enrollment: {
+        title: 'Active la verificación en dos pasos',
+        instructions:
+          'Escanee este código QR con una aplicación de autenticación (Google Authenticator, Authy…) y luego escriba el código de 6 dígitos que le muestre.',
+        qrAlt: 'Código QR para activar la aplicación de autenticación',
+        manualLabel: 'O agréguela a mano con esta clave:',
+      },
     },
     password: {
       show: 'Mostrar contraseña',
@@ -73,6 +81,31 @@ export const messages = {
       banner: 'Está usando su fecha de nacimiento como contraseña.',
       bannerCta: 'Cámbiela aquí',
     },
+  },
+  setup: {
+    title: 'Configuración inicial',
+    intro:
+      'Cree la cuenta de superadministrador(a). Esta página solo funciona una vez, antes de que exista una cuenta.',
+    alreadyDone: 'La configuración inicial ya se completó. Inicie sesión normalmente.',
+    goToLogin: 'Ir a iniciar sesión',
+    checking: 'Verificando…',
+    fields: {
+      cedula: 'Cédula',
+      fullName: 'Nombre completo',
+      birthDate: 'Fecha de nacimiento',
+      phone: 'Teléfono',
+      phoneWhatsapp: 'Ese teléfono tiene WhatsApp',
+      recintoName: 'Recinto de votación',
+      sector: 'Sector',
+      password: 'Contraseña',
+      passwordConfirm: 'Repita la contraseña',
+    },
+    passwordHint: (minLength: number) =>
+      `Debe tener al menos ${minLength} caracteres y no puede ser su fecha de nacimiento.`,
+    passwordMismatch: 'Las contraseñas no coinciden.',
+    submit: 'Crear cuenta',
+    submitting: 'Creando cuenta…',
+    success: 'Cuenta creada. Inicie sesión para activar la verificación en dos pasos.',
   },
   perfil: {
     title: 'Mi perfil',
@@ -751,6 +784,32 @@ export const messages = {
         usage: (used: string, limit: string, percent: number) =>
           `${used} MB de ${limit} MB (${percent}%)`,
         warning: 'La base de datos está cerca de su límite. Considere hacer un respaldo pronto.',
+      },
+    },
+    configuracion: {
+      title: 'Configuración',
+      intro: 'Los umbrales que rigen la nominación y la promoción automática de líderes.',
+      loading: 'Cargando…',
+      save: 'Guardar cambios',
+      saving: 'Guardando…',
+      success: 'La configuración se guardó correctamente.',
+      fields: {
+        nominationMinInitialMembers: {
+          label: 'Miembros iniciales para nominar',
+          hint: 'Cuántos miembros debe registrar un aspirante antes de poder nominarlo.',
+        },
+        autoPromotionThreshold: {
+          label: 'Umbral de promoción automática',
+          hint: 'Miembros en su equipo para que un aspirante sea promovido a líder de equipo.',
+        },
+        teamGoal: {
+          label: 'Meta de equipo',
+          hint: 'Meta de miembros que se muestra a un líder de equipo (ya promovido).',
+        },
+        maxOpenAspirantsPerNominator: {
+          label: 'Aspirantes sin promover por nominador',
+          hint: 'Cuántos aspirantes sin promover puede tener abiertos a la vez quien nomina.',
+        },
       },
     },
   },

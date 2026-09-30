@@ -4,6 +4,7 @@ import { TEST_TOTP_KEY, totpCodeAt } from '../../../test/totp';
 import { createTestLogin, createTestPerson, createTestUser } from '../../../test/users';
 import { verifyPassword } from '../../lib/password';
 import { matchTotpStep } from '../../lib/totp';
+import { pendingEnrollment } from '../auth/totp';
 import { PersonModel } from '../people/model';
 import { UserModel } from './model';
 import { seedSuperadmin } from './seedSuperadmin';
@@ -50,15 +51,18 @@ describe('seedSuperadmin', () => {
     await expect(UserModel.countDocuments()).resolves.toBe(0);
   });
 
-  it('returns a TOTP secret whose current code the login flow would accept', async () => {
+  it('creates a TOTP secret the login flow can reveal for enrollment (never returned here)', async () => {
     const result = await seedSuperadmin(
       { cedula: '00100000001', password: PASSWORD },
       TEST_TOTP_KEY,
     );
+    const user = await UserModel.findById(result.userId);
+    if (!user) throw new Error('User was not created');
+
+    const enrollment = pendingEnrollment(user, TEST_TOTP_KEY);
+    if (!enrollment) throw new Error('Expected a pending enrollment');
     const now = Date.now();
-    expect(
-      matchTotpStep(result.totpSecret, totpCodeAt(now, result.totpSecret), now),
-    ).not.toBeNull();
+    expect(matchTotpStep(enrollment.secret, totpCodeAt(now, enrollment.secret), now)).not.toBeNull();
   });
 
   it('still enforces the password rules (≥14 characters, not the birth date)', async () => {

@@ -1,5 +1,5 @@
 /** Routes reachable without a session cookie; everything else redirects to /login. */
-const PUBLIC_PATHS = ['/login'];
+const PUBLIC_PATHS = ['/login', '/configuracion-inicial'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));

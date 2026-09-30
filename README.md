@@ -31,19 +31,20 @@ npm run voters:seed          # 20 synthetic voters, generated and imported in on
 
 `superadmin:seed` logs in with cédula `00100000001` and password `***************` (override
 with `npm run superadmin:seed --workspace=backend -- --cedula <11 digits> --password <text>`). It
-fabricates its own voter record, so it needs nothing else first. It still enrolls TOTP for real
-(superadmin login always requires it) and prints a QR code in the terminal to scan with an
-authenticator app. Refuses outside `NODE_ENV=development`, and refuses if a superadmin already
-exists (there is only ever one — drop the database, or `docker compose -f docker-compose.dev.yml
-down -v`, to start over).
+fabricates its own profile, so it needs nothing else first. It still enrolls TOTP for real
+(superadmin login always requires it): log in at `/login` and the app shows the QR code to scan on
+that first login, same as the real `/configuracion-inicial` flow (below) would. Refuses outside
+`NODE_ENV=development`, and refuses if a superadmin already exists (there is only ever one — drop
+the database, or `docker compose -f docker-compose.dev.yml down -v`, to start over).
 
 `voters:seed` is for testing flows that need actual padrón data (`/padron` lookup, registering a
 member, other roles). It just chains `voters:fake` and `voters:import --apply` with fixed defaults;
 reach for those two individually (both need `--workspace=backend`, see the script table below) if
 you want a different voter count or a custom file.
 
-The real superadmin flow (`superadmin:create`, below) is what production uses: it ties the account
-to an actual imported voter and makes the operator confirm a live TOTP code.
+The real superadmin flow is what production uses: visit `/configuracion-inicial` once (a public
+page that only ever works before a superadmin exists) and fill in the owner's real details
+directly — it doesn't need the padrón imported first, unlike everyone else in the app.
 
 **Logging in locally.** The session cookie is `__Host-sid` (`Secure`, `HttpOnly`, `SameSite=Lax`).
 Browsers accept `Secure` cookies from `http://localhost`, so it works over plain http as long as
@@ -66,8 +67,7 @@ Run from the repository root.
 | `npm run lint` · `npm run typecheck` · `npm test` · `npm run build` | The CI gates; all must pass before a PR merges |
 | `npm run format` | Format with Prettier |
 | `npm run voters:seed` | **Dev only.** Generate 20 synthetic voters and import them, in one step (fixed `--cut dev`) |
-| `npm run superadmin:seed` | **Dev only.** Create the superadmin from a fixed cédula and password (defaults `00100000001` / `******************`, overridable via `--workspace=backend -- --cedula ... --password ...`), with no padrón import needed. Still enrolls real TOTP (prints a QR). Refuses outside `NODE_ENV=development` or if a superadmin exists |
-| `npm run superadmin:create` | The real flow (used in production too). Create the one superadmin (the owner): asks for the cédula (must be in the imported padrón), phone, a password of at least 14 characters, and enrolls TOTP (terminal QR + otpauth URI, confirmed live). Refuses if a superadmin exists. Built as `dist/scripts/create-superadmin.js` for production |
+| `npm run superadmin:seed` | **Dev only.** Create the superadmin from a fixed cédula and password (defaults `00100000001` / `******************`, overridable via `--workspace=backend -- --cedula ... --password ...`), with no padrón import needed. TOTP is enrolled on the first login in the app (real flow, below), not printed by this script. Refuses outside `NODE_ENV=development` or if a superadmin exists |
 | `npm run s3:check` | Put, get and delete a test object in the media and imports buckets of the configured S3 |
 
 Anything more specific than the above (a custom voter count, a dry run, a particular file) goes

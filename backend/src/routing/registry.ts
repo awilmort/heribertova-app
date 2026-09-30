@@ -12,6 +12,7 @@ import { createPeopleRoutes } from '../modules/people/routes';
 import { createPromotionRoutes } from '../modules/promotions/routes';
 import { createRecintoRoutes } from '../modules/recintos/routes';
 import { createSettingsRoutes } from '../modules/settings/routes';
+import { createSetupRoutes } from '../modules/setup/routes';
 import { createUserRoutes } from '../modules/users/routes';
 import { createVoterRoutes } from '../modules/voters/routes';
 import type { ApiRoute } from './apiRoute';
@@ -21,6 +22,7 @@ import type { ApiRoute } from './apiRoute';
 export function apiRoutes(config: AppConfig, dependencies: AppDependencies): ApiRoute[] {
   return [
     ...createHealthRoutes({ mongo: pingMongo, s3: dependencies.pingS3 }),
+    ...createSetupRoutes({ totpKey: config.TOTP_ENC_KEY }),
     ...createAuthRoutes({
       loginRateLimitMax: config.LOGIN_RATE_LIMIT_MAX,
       totpKey: config.TOTP_ENC_KEY,

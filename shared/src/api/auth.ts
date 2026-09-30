@@ -25,9 +25,15 @@ export type LoginRequest = z.infer<typeof loginRequestSchema>;
 /**
  * `POST /api/auth/login` answers 204 with the session cookie, except for the superadmin: then it
  * answers 202 with this body and a short-lived TOTP challenge cookie, which grants no access
- * until `POST /api/auth/totp/verify` accepts a code.
+ * until `POST /api/auth/totp/verify` accepts a code. `enrollment` is present only the first time,
+ * before any code has ever been accepted (`users.totpLastUsedStep` still null): the superadmin's
+ * secret is generated at account setup already, but never shown until this first login, so the QR
+ * code lives in the app instead of a CLI the operator has to remember to keep.
  */
-export const totpRequiredResponseSchema = z.object({ totpRequired: z.literal(true) });
+export const totpRequiredResponseSchema = z.object({
+  totpRequired: z.literal(true),
+  enrollment: z.object({ secret: z.string(), qrDataUrl: z.string() }).optional(),
+});
 export type TotpRequiredResponse = z.infer<typeof totpRequiredResponseSchema>;
 
 /** `POST /api/auth/totp/verify`: the 6-digit code of the authenticator app, without spaces. */

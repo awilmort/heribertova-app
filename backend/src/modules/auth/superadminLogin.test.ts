@@ -15,6 +15,7 @@ import {
   sessionCookie,
   sessionTokenFrom,
   superadminChallengeToken,
+  superadminLoginToken,
   testConfig,
   testDependencies,
   totpChallengeCookie,
@@ -22,9 +23,10 @@ import {
   verifyTotp,
 } from '../../../test/app';
 import { useTestDatabase } from '../../../test/database';
-import { totpCodeAt } from '../../../test/totp';
+import { TEST_TOTP_KEY, TEST_TOTP_SECRET, totpCodeAt } from '../../../test/totp';
 import { createTestUser, DEFAULT_TEST_PASSWORD } from '../../../test/users';
 import { createLogger } from '../../lib/logger';
+import { decryptSecret } from '../../lib/secretBox';
 import { hashToken } from '../../lib/token';
 import { API_PREFIX } from '../../routing/apiRoute';
 import { apiRoutes } from '../../routing/registry';
@@ -86,12 +88,16 @@ async function passwordStepDone(app = buildTestApp()) {
 }
 
 describe('superadmin password step', () => {
-  it('answers 202 { totpRequired } with a 5-minute challenge cookie and no session', async () => {
+  it('answers 202 { totpRequired, enrollment } with a 5-minute challenge cookie and no session', async () => {
     const user = await createTestUser({ role: 'superadmin' });
     const res = await login(buildTestApp(), user.username, DEFAULT_TEST_PASSWORD);
 
     expect(res.status).toBe(202);
-    expect(totpRequiredResponseSchema.parse(res.body)).toEqual({ totpRequired: true });
+    const body = totpRequiredResponseSchema.parse(res.body);
+    expect(body.totpRequired).toBe(true);
+    // A brand-new superadmin has never confirmed a code yet, so the enrollment QR is included
+    // (see the "TOTP enrollment" tests below for the detail).
+    expect(body.enrollment).toBeDefined();
     const cookies = setCookies(res);
     expect(cookies).toHaveLength(1);
     expect(cookies[0]).toMatch(/^__Host-totp=[\w-]{43};/);
@@ -128,6 +134,31 @@ describe('superadmin password step', () => {
     expect(res.status).toBe(204);
     expect(sessionTokenFrom(res)).toBeDefined();
     expect(totpChallengeTokenFrom(res)).toBeUndefined();
+  });
+});
+
+describe('TOTP enrollment', () => {
+  it("reveals the account's real secret as a QR code before any code has ever been accepted", async () => {
+    const user = await createTestUser({ role: 'superadmin' });
+    const res = await login(buildTestApp(), user.username, DEFAULT_TEST_PASSWORD);
+
+    const { enrollment } = totpRequiredResponseSchema.parse(res.body);
+    if (!enrollment) throw new Error('Expected an enrollment');
+    expect(enrollment.secret).toBe(TEST_TOTP_SECRET);
+    expect(enrollment.qrDataUrl).toMatch(/^data:image\/png;base64,/);
+    // Never sent in plain text anywhere but this one-time response.
+    expect(decryptSecret(TEST_TOTP_KEY, (await UserModel.findById(user._id))!.totpSecretEnc!)).toBe(
+      enrollment.secret,
+    );
+  });
+
+  it('stops appearing once a code has been accepted once', async () => {
+    const app = buildTestApp();
+    const user = await createTestUser({ role: 'superadmin' });
+    await superadminLoginToken(app, user.username, DEFAULT_TEST_PASSWORD);
+
+    const res = await login(app, user.username, DEFAULT_TEST_PASSWORD);
+    expect(totpRequiredResponseSchema.parse(res.body).enrollment).toBeUndefined();
   });
 });
 

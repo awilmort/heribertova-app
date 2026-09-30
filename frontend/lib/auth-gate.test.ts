@@ -18,4 +18,8 @@ describe('loginRedirectTarget', () => {
     expect(loginRedirectTarget('/login', '', false)).toBeNull();
     expect(loginRedirectTarget('/login', '?next=/padron', false)).toBeNull();
   });
+
+  it('never redirects the one-time superadmin setup page, cookie or not', () => {
+    expect(loginRedirectTarget('/configuracion-inicial', '', false)).toBeNull();
+  });
 });

@@ -13,10 +13,10 @@ Each sub-phase is scoped to be completed as a single self-contained unit of work
 
 1. **Higüey only.** Only people in the uploaded Higüey voter data can be registered. There is no exterior/diaspora anywhere.
 2. **No party-affiliation check**, and no affiliation field.
-3. **MongoDB Atlas M0 + Mongoose.** Express 5 API on Render; Next.js 16 on Vercel, which calls the API through same-origin `/api` rewrites; AWS S3 for photos and backups; Turnstile on login. **No other paid or paid-tier services.** No Redis, no worker process, no SMS/email, no KYC, no LOE wrapper.
+3. **MongoDB Atlas M0 + Mongoose.** Express 5 API on Render; Next.js 16 on Vercel, which calls the API through same-origin `/api` rewrites; AWS S3 for photos and backups. **No other paid or paid-tier services.** No Redis, no worker process, no SMS/email, no KYC, no LOE wrapper.
 4. **Login = cédula + password; default password = birth date `DDMMYYYY`**, hashed with argon2id. Changing it is optional but encouraged with a skippable prompt and a banner. Forgotten passwords are reset by a coordinator or the superadmin back to the default.
 5. **Only aspirants and above log in.** Plain members have no `users` document. There is no public registration of any kind.
-6. **Exactly one superadmin** (the owner), created by CLI with a strong password + TOTP and guaranteed by a unique partial index. Only the superadmin can import voter data.
+6. **Exactly one superadmin** (the owner), created once from a public, self-limiting setup page (`/configuracion-inicial`) with a strong password and TOTP enrolled at first login, guaranteed by a unique partial index. Unlike every other person in the app, the superadmin's own profile is typed in directly rather than checked against the imported padrón (revisited after launch: see the deploy notes). Only the superadmin can import voter data.
 7. **Five login roles defined in code** (`shared/roles.ts` + `shared/permissions.ts`), not an editable permission table in the database.
 8. **Promotion counts all registered, non-deleted members.** Thresholds are stored settings (defaults 2 / 8 / 20 / 1).
 9. **Scope is enforced server-side** on every query and `:id` route.

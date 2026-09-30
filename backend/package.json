@@ -12,7 +12,6 @@
     "voters:import": "tsx --max-old-space-size=160 --env-file-if-exists=.env scripts/voters-import.ts",
     "voters:fake": "tsx scripts/fake-voter-file.ts",
     "voters:seed": "npm run voters:fake -- --out tmp/voters.json && npm run voters:import -- --file tmp/voters.json --cut dev --apply",
-    "superadmin:create": "tsx --env-file-if-exists=.env scripts/create-superadmin.ts",
     "superadmin:seed": "tsx --env-file-if-exists=.env scripts/seed-superadmin.ts",
     "backup:restore": "tsx --env-file-if-exists=.env scripts/restore.ts"
   },
@@ -20,9 +19,6 @@
     "@aws-sdk/client-s3": "^3.1141.0",
     "@aws-sdk/s3-request-presigner": "^3.1142.0",
     "@heribertova/shared": "*",
-    "@inquirer/confirm": "^6.3.2",
-    "@inquirer/input": "^5.1.6",
-    "@inquirer/password": "^5.2.2",
     "argon2": "^0.45.1",
     "bson": "^7.2.0",
     "cookie-parser": "^1.4.7",

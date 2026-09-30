@@ -1,12 +1,11 @@
-// Creates the superadmin for LOCAL DEVELOPMENT AND MANUAL TESTING ONLY, without needing an
-// imported voter file first (compare `scripts/create-superadmin.ts`, the real flow, which requires
-// the owner to be an actual Higüey voter and asks the operator to confirm a TOTP code). Refuses to
-// run outside development. TOTP is still required to log in — scan the printed QR once.
+// Creates the superadmin for LOCAL DEVELOPMENT AND MANUAL TESTING ONLY, with fabricated profile
+// details instead of the `/configuracion-inicial` form (the real flow, plan 3.3). Refuses to run
+// outside development. TOTP is still required to log in — the app shows the QR code on first
+// login, same as it would for a superadmin created through the real setup page.
 //
 //   npm run superadmin:seed --workspace=backend
 //   npm run superadmin:seed --workspace=backend -- --cedula 00100000009 --password "otra frase larga"
 import { parseArgs } from 'node:util';
-import QRCode from 'qrcode';
 import { loadEnv } from '../src/config/env';
 import { connectMongo, disconnectMongo } from '../src/db/mongo';
 import { createLogger } from '../src/lib/logger';
@@ -29,9 +28,7 @@ if (env.NODE_ENV === 'production') {
   console.error(
     'superadmin:seed is for local development only and refuses to run with NODE_ENV=production.',
   );
-  console.error(
-    'Use `npm run superadmin:create --workspace=backend` instead (requires the imported padrón).',
-  );
+  console.error('Use `/configuracion-inicial` in the running app instead.');
   process.exit(1);
 }
 
@@ -44,10 +41,7 @@ try {
   console.log(`Superadmin creado (usuario ${result.userId}).`);
   console.log(`Cédula: ${result.cedula}`);
   console.log(`Contraseña: ${values.password}`);
-  console.log('');
-  console.log('Escanee este código con su aplicación de autenticación para poder iniciar sesión:');
-  console.log(await QRCode.toString(result.totpUri, { type: 'terminal', small: true }));
-  console.log(`O agréguela a mano con esta clave: ${result.totpSecret}`);
+  console.log('Inicie sesión en la app: el código QR para su aplicación de autenticación aparece ahí.');
 } catch (err) {
   if (err instanceof SuperadminSetupError) {
     console.error(err.message);

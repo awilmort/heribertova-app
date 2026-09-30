@@ -1,10 +1,13 @@
 import type { Types } from 'mongoose';
 import { decryptSecret } from '../../lib/secretBox';
 import { hashToken, newSecretToken } from '../../lib/token';
-import { matchTotpStep } from '../../lib/totp';
+import { matchTotpStep, totpUri } from '../../lib/totp';
 import { UserModel, type UserDocument } from '../users/model';
 import { TotpChallengeModel } from './model';
 import { isLocked, registerFailedAttempt } from './service';
+
+/** The label the authenticator app shows above the code; no cédula or name on the phone. */
+const TOTP_LABEL = 'superadmin';
 
 /**
  * The superadmin's second login step (HERIBERTO_ARCHITECTURE.md §7, plan 3.3). A right password
@@ -27,6 +30,21 @@ export const TOTP_REVERIFY_TTL_MS = 30 * 60 * 1000;
 /** Only the superadmin logs in with a second factor (§7). */
 export function requiresTotp(user: UserDocument): boolean {
   return user.role === 'superadmin';
+}
+
+/**
+ * The secret and enrollment URI to show a superadmin who has never confirmed a code yet
+ * (`totpLastUsedStep` still null, set by `setupSuperadmin`): the login route renders this as a QR
+ * code in the app, so the operator scans it there instead of a CLI terminal. Null once a code has
+ * been accepted at least once — the secret is never shown again after that.
+ */
+export function pendingEnrollment(
+  user: UserDocument,
+  totpKey: Buffer,
+): { secret: string; uri: string } | null {
+  if (!user.totpSecretEnc || user.totpLastUsedStep !== null) return null;
+  const secret = decryptSecret(totpKey, user.totpSecretEnc);
+  return { secret, uri: totpUri(secret, TOTP_LABEL) };
 }
 
 export interface NewTotpChallenge {

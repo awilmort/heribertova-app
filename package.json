@@ -11,7 +11,7 @@
     "frontend"
   ],
   "scripts": {
-    "prepare": "simple-git-hooks",
+    "prepare": "node -e \"process.env.CI || process.env.RENDER || require('node:child_process').execSync('simple-git-hooks', { stdio: 'inherit' })\"",
     "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --workspace=@heribertova/backend\" \"npm run dev --workspace=@heribertova/frontend\"",
     "dev:up": "docker compose -f docker-compose.dev.yml up -d --wait mongo s3 && docker compose -f docker-compose.dev.yml run --rm s3-init",
     "dev:down": "docker compose -f docker-compose.dev.yml down",
@@ -25,7 +25,6 @@
     "format:check": "prettier --check .",
     "voters:seed": "npm run voters:seed --workspace=@heribertova/backend",
     "superadmin:seed": "npm run superadmin:seed --workspace=@heribertova/backend",
-    "superadmin:create": "npm run superadmin:create --workspace=@heribertova/backend",
     "s3:check": "npm run s3:check --workspace=@heribertova/backend"
   },
   "devDependencies": {

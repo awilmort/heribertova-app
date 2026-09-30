@@ -20,6 +20,7 @@ import {
   recintoSummarySchema,
   recintoVotersResponseSchema,
   sectorsResponseSchema,
+  setupStatusResponseSchema,
   totpRequiredResponseSchema,
   userListResponseSchema,
   voterCardSchema,
@@ -40,8 +41,11 @@ import {
   type LoginRequest,
   type NominationRequest,
   type PhotoKind,
+  type PromotionSettings,
   type RecintoListQuery,
   type RecintoVotersQuery,
+  type SetupSuperadminRequest,
+  type TotpRequiredResponse,
   type TotpVerifyRequest,
   type UpdatePersonRequest,
   type UpdateUserRequest,
@@ -147,7 +151,9 @@ async function apiRequestVoid(path: string, init?: RequestInit): Promise<void> {
  * `POST /api/auth/login`. Unlike every other call, its success shape depends on the status: 204
  * (no body) opens a session directly, while 202 means the superadmin must also pass `verifyTotp`.
  */
-async function login(request: LoginRequest): Promise<{ totpRequired: boolean }> {
+async function login(
+  request: LoginRequest,
+): Promise<{ totpRequired: false } | TotpRequiredResponse> {
   const res = await send('/auth/login', jsonInit('POST', request));
   if (res.status === 204) return { totpRequired: false };
 
@@ -165,6 +171,11 @@ export const api = {
   login,
   verifyTotp: (request: TotpVerifyRequest) =>
     apiRequestVoid('/auth/totp/verify', jsonInit('POST', request)),
+  /** `/configuracion-inicial`: whether the one-time superadmin setup is still open. */
+  setupStatus: () => apiRequest('/setup/status', { schema: setupStatusResponseSchema }),
+  /** `/configuracion-inicial`: creates the superadmin. Only ever succeeds once. */
+  setupSuperadmin: (request: SetupSuperadminRequest) =>
+    apiRequestVoid('/setup/superadmin', jsonInit('POST', request)),
   logout: () => apiRequestVoid('/auth/logout', { method: 'POST' }),
   /** Who is logged in: person, role, permissions, landing page and whether the password is still the default. */
   me: () => apiRequest('/me', { schema: meResponseSchema }),
@@ -229,6 +240,12 @@ export const api = {
   /** The promotion thresholds (plan 6.1): readable by anyone, so the nomination dialog can show
    * "Registre N más para habilitar" with the real configured minimum. */
   promotionSettings: () => apiRequest('/settings/promotion', { schema: promotionSettingsSchema }),
+  /** `/admin/configuracion` (superadmin only): saves the promotion thresholds. */
+  updatePromotionSettings: (request: PromotionSettings) =>
+    apiRequest('/settings/promotion', {
+      schema: promotionSettingsSchema,
+      init: jsonInit('PUT', request),
+    }),
   /** `POST /api/promotions/nominations` (plan 6.1): the "Nominar aspirante" dialog. */
   nominate: (request: NominationRequest) =>
     apiRequest('/promotions/nominations', {
