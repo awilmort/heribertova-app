@@ -13,7 +13,6 @@ const required = {
   S3_IMPORTS_BUCKET: 'imports',
   S3_BACKUP_BUCKET: 'backups',
   APP_ORIGIN: 'http://localhost:3000',
-  TURNSTILE_SECRET_KEY: 'test-turnstile-secret',
   TOTP_ENC_KEY: TOTP_KEY_BASE64,
 };
 
@@ -110,7 +109,7 @@ describe('loadEnv', () => {
   });
 
   describe('authentication', () => {
-    it.each(['APP_ORIGIN', 'TURNSTILE_SECRET_KEY', 'TOTP_ENC_KEY'] as const)(
+    it.each(['APP_ORIGIN', 'TOTP_ENC_KEY'] as const)(
       'fails when %s is missing',
       (name) => {
         expect(() => loadEnv({ ...required, [name]: undefined })).toThrow(new RegExp(name));
@@ -145,13 +144,6 @@ describe('loadEnv', () => {
       expect(() => loadEnv({ ...required, EXPORTS_DAILY_QUOTA: '0' })).toThrow(
         /EXPORTS_DAILY_QUOTA/,
       );
-    });
-
-    it('never echoes the Turnstile secret when the configuration is invalid', () => {
-      const run = () =>
-        loadEnv({ ...required, TURNSTILE_SECRET_KEY: 'turnstile-secret', PORT: 'x' });
-      expect(run).toThrow(/PORT/);
-      expect(run).not.toThrow(/turnstile-secret/);
     });
 
     it('decodes TOTP_ENC_KEY to its 32 bytes', () => {

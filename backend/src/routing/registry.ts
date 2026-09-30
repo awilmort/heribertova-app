@@ -22,7 +22,6 @@ export function apiRoutes(config: AppConfig, dependencies: AppDependencies): Api
   return [
     ...createHealthRoutes({ mongo: pingMongo, s3: dependencies.pingS3 }),
     ...createAuthRoutes({
-      verifyTurnstile: dependencies.verifyTurnstile,
       loginRateLimitMax: config.LOGIN_RATE_LIMIT_MAX,
       totpKey: config.TOTP_ENC_KEY,
     }),

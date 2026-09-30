@@ -19,11 +19,9 @@ export const testConfig: AppConfig = {
   TOTP_ENC_KEY: TEST_TOTP_KEY,
 };
 
-/** External services stood in: S3 answers, every Turnstile token passes, and photos land in memory
- * instead of a real bucket. */
+/** External services stood in: S3 answers, and photos land in memory instead of a real bucket. */
 export const testDependencies: AppDependencies = {
   pingS3: () => Promise.resolve(true),
-  verifyTurnstile: () => Promise.resolve(true),
   objectStorage: new InMemoryObjectStorage(),
   importsObjectStorage: new InMemoryObjectStorage(),
   backupObjectStorage: new InMemoryObjectStorage(),
@@ -80,10 +78,7 @@ export function totpChallengeTokenFrom(res: request.Response): string | undefine
 }
 
 export function login(app: Express, cedula: string, password: string) {
-  return request(app)
-    .post('/api/auth/login')
-    .set(sameOriginHeaders)
-    .send({ cedula, password, turnstileToken: 'test-token' });
+  return request(app).post('/api/auth/login').set(sameOriginHeaders).send({ cedula, password });
 }
 
 /** Logs in and returns the session token; fails the test if the login is refused. */

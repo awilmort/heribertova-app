@@ -294,7 +294,7 @@ Done when: every item is marked pass or not-applicable with a note, and findings
 ## PHASE 10 — Deployment and launch
 
 **10.1 Cloud setup and first production deploy**
-Follow `HERIBERTO_ARCHITECTURE.md` Appendix A for **prod** (a cloud dev/staging environment is optional and not planned): Atlas M0, S3 buckets + IAM + CORS, Render, Vercel, domain DNS for heribertova.do, a real Turnstile widget, and GitHub secrets. Set `trust proxy` for Vercel → Render. A temporary `whoami-ip` endpoint checks that the real client IP arrives through the Vercel rewrite, so per-IP rate limits work; remove it afterwards.
+Follow `HERIBERTO_ARCHITECTURE.md` Appendix A for **prod** (a cloud dev/staging environment is optional and not planned): Atlas M0, S3 buckets + IAM + CORS, Render, Vercel, domain DNS for heribertova.do, and GitHub secrets. Set `trust proxy` for Vercel → Render. A temporary `whoami-ip` endpoint checks that the real client IP arrives through the Vercel rewrite, so per-IP rate limits work; remove it afterwards.
 Done when:
 - `https://heribertova.do/api/health` returns OK through Vercel → Render → Atlas;
 - `s3:check` passes against prod with the least-privilege key;
@@ -308,7 +308,7 @@ A k6 smoke test (login burst, 50 concurrent registrations, dashboards) against p
 - create the superadmin in prod (strong password + TOTP) and seed prod settings;
 - **initial real voter load** through `/admin/padron` (Phase 9);
 - switch Render to **Starter** (or enable the UptimeRobot keep-alive) per architecture §13;
-- go-live checklist: DNS, TLS, Turnstile, backups green, restore tested from a prod backup into a scratch database, `/privacidad` published with the approved texts.
+- go-live checklist: DNS, TLS, backups green, restore tested from a prod backup into a scratch database, `/privacidad` published with the approved texts.
 
 Done when: p95 is within targets (lookups < 300 ms, registration < 800 ms excluding photo upload), and the owner signs off the checklist.
 

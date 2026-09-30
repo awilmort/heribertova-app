@@ -2,7 +2,6 @@ import { createApp } from './app';
 import { loadEnv } from './config/env';
 import { connectMongo, disconnectMongo } from './db/mongo';
 import { createLogger } from './lib/logger';
-import { createTurnstileVerifier } from './modules/auth/turnstile';
 import { failInterruptedValidations } from './modules/imports/service';
 import { createS3ObjectStorage } from './storage/objectStorage';
 import { createS3Client, pingBucket } from './storage/s3';
@@ -21,7 +20,6 @@ for (const interrupted of await failInterruptedValidations()) {
 
 const server = createApp(env, logger, {
   pingS3: () => pingBucket(s3, env.S3_MEDIA_BUCKET),
-  verifyTurnstile: createTurnstileVerifier(env.TURNSTILE_SECRET_KEY, logger),
   objectStorage: createS3ObjectStorage(s3, env.S3_MEDIA_BUCKET),
   importsObjectStorage: createS3ObjectStorage(s3, env.S3_IMPORTS_BUCKET),
   backupObjectStorage: createS3ObjectStorage(s3, env.S3_BACKUP_BUCKET),

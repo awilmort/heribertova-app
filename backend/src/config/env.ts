@@ -28,8 +28,6 @@ const envSchema = z.object({
    * (CSRF guard). http://localhost:3000 locally, https://heribertova.do in production.
    */
   APP_ORIGIN: z.url({ protocol: /^https?$/ }).transform((url) => new URL(url).origin),
-  /** Cloudflare Turnstile secret for the login bot check (the always-pass test secret locally). */
-  TURNSTILE_SECRET_KEY: z.string().min(1),
   /**
    * AES-256-GCM key (32 bytes, base64: `openssl rand -base64 32`) that encrypts the superadmin's
    * TOTP secret at rest (lib/secretBox). Losing it means re-enrolling TOTP; changing it too.

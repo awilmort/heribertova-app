@@ -19,8 +19,6 @@ export const loginRequestSchema = z.object({
     .string()
     .min(1, 'Ingrese su contraseña.')
     .max(PASSWORD_MAX_LENGTH, PASSWORD_TOO_LONG_MESSAGE),
-  /** The Cloudflare Turnstile widget's response token, verified server-side. */
-  turnstileToken: z.string().min(1, 'Complete la verificación.').max(2048),
 });
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 

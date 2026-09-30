@@ -25,10 +25,8 @@ import { createSession, deleteSession, markTotpVerified } from '../sessions/serv
 import type { UserDocument } from '../users/model';
 import { authenticate, completeLogin, isLocked, registerFailedAttempt } from './service';
 import { claimTotpStep, requiresTotp, startTotpChallenge, verifyTotpChallenge } from './totp';
-import type { TurnstileVerifier } from './turnstile';
 
 export interface AuthRoutesOptions {
-  verifyTurnstile: TurnstileVerifier;
   /** Failed logins allowed per client IP + cédula (and failed TOTP codes per IP) per 15 minutes. */
   loginRateLimitMax: number;
   /** TOTP_ENC_KEY: decrypts the superadmin's TOTP secret. */
@@ -61,7 +59,6 @@ async function openSession(req: Request, res: Response, user: UserDocument): Pro
 }
 
 export function createAuthRoutes({
-  verifyTurnstile,
   loginRateLimitMax,
   totpKey,
 }: AuthRoutesOptions): ApiRoute[] {
@@ -74,13 +71,8 @@ export function createAuthRoutes({
         validate({ body: loginRequestSchema }),
         loginRateLimit(loginRateLimitMax),
         async (req, res) => {
-          const { cedula, password, turnstileToken } = req.body as LoginRequest;
+          const { cedula, password } = req.body as LoginRequest;
 
-          // The bot check comes first, so bots never reach password hashing or the lockout counters.
-          if (!(await verifyTurnstile(turnstileToken, req.ip))) {
-            req.log.warn({ reason: 'turnstile' }, 'Login failed');
-            throw invalidCredentials();
-          }
           const result = await authenticate(cedula, password);
           if (!result.ok) {
             req.log.warn({ reason: result.reason }, 'Login failed');

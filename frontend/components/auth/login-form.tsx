@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { api, ApiError } from '@/lib/api';
 import { messages } from '@/messages/es';
-import { TurnstileWidget } from './turnstile-widget';
 
 const text = messages.auth;
 
@@ -20,12 +19,12 @@ function safeNextPath(next: string | undefined): string {
 }
 
 /**
- * The login form (plan 3.4): cédula + password + Turnstile, then, for the superadmin only, a
- * second step for the TOTP code. `POST /api/auth/login` answers 204 (session opened) or 202
- * (`totpRequired`); the step this component is on is purely local UI state, since the actual
- * authorization lives in the `__Host-totp` cookie the server already set.
+ * The login form (plan 3.4): cédula + password, then, for the superadmin only, a second step for
+ * the TOTP code. `POST /api/auth/login` answers 204 (session opened) or 202 (`totpRequired`); the
+ * step this component is on is purely local UI state, since the actual authorization lives in the
+ * `__Host-totp` cookie the server already set.
  */
-export function LoginForm({ nonce, next }: { nonce: string; next?: string }) {
+export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const cedulaId = useId();
   const passwordId = useId();
@@ -34,7 +33,6 @@ export function LoginForm({ nonce, next }: { nonce: string; next?: string }) {
   const [step, setStep] = useState<'credentials' | 'totp'>('credentials');
   const [cedula, setCedula] = useState('');
   const [password, setPassword] = useState('');
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [code, setCode] = useState('');
 
   function goToNext() {
@@ -58,18 +56,17 @@ export function LoginForm({ nonce, next }: { nonce: string; next?: string }) {
       if (error instanceof ApiError && error.code === 'UNAUTHENTICATED') {
         setStep('credentials');
         setPassword('');
-        setTurnstileToken(null);
       }
     },
   });
 
   const digits = cedulaDigits(cedula);
-  const credentialsComplete = isCedula(digits) && password.length > 0 && turnstileToken !== null;
+  const credentialsComplete = isCedula(digits) && password.length > 0;
 
   function submitCredentials(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (credentialsComplete && turnstileToken) {
-      login.mutate({ cedula: digits, password, turnstileToken });
+    if (credentialsComplete) {
+      login.mutate({ cedula: digits, password });
     }
   }
 
@@ -142,7 +139,6 @@ export function LoginForm({ nonce, next }: { nonce: string; next?: string }) {
           className="h-11"
         />
       </div>
-      <TurnstileWidget nonce={nonce} onToken={setTurnstileToken} />
       <Button
         type="submit"
         size="lg"

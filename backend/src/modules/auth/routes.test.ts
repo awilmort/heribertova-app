@@ -16,7 +16,6 @@ import { createLogger } from '../../lib/logger';
 import { hashToken } from '../../lib/token';
 import { SessionModel } from '../sessions/model';
 import { UserModel } from '../users/model';
-import type { TurnstileVerifier } from './turnstile';
 
 useTestDatabase();
 
@@ -118,49 +117,6 @@ describe('POST /api/auth/login', () => {
   it('rejects a deactivated account with the same message, even with the right password', async () => {
     const user = await createTestUser({ isActive: false });
     expectGenericFailure(await login(buildTestApp(), user.username, DEFAULT_TEST_PASSWORD));
-  });
-
-  describe('Turnstile', () => {
-    it('verifies the widget token with the client IP before anything else', async () => {
-      const verifyTurnstile = vi.fn<TurnstileVerifier>().mockResolvedValue(true);
-      const user = await createTestUser();
-      const res = await request(buildTestApp({ dependencies: { verifyTurnstile } }))
-        .post('/api/auth/login')
-        .set(sameOriginHeaders)
-        .send({ cedula: user.username, password: DEFAULT_TEST_PASSWORD, turnstileToken: 'tok-1' });
-
-      expect(res.status).toBe(204);
-      expect(verifyTurnstile).toHaveBeenCalledWith(
-        'tok-1',
-        expect.stringMatching(/127\.0\.0\.1|::1/),
-      );
-    });
-
-    it('rejects a failed check with the generic message, without touching the account', async () => {
-      const verifyTurnstile = vi.fn<TurnstileVerifier>().mockResolvedValue(false);
-      const user = await createTestUser();
-      const app = buildTestApp({ dependencies: { verifyTurnstile } });
-
-      expectGenericFailure(await login(app, user.username, DEFAULT_TEST_PASSWORD));
-      expectGenericFailure(await login(app, user.username, 'wrong-password'));
-
-      const stored = await UserModel.findById(user._id);
-      expect(stored?.failedAttempts).toBe(0);
-      expect(stored?.lastLoginAt).toBeNull();
-      await expect(SessionModel.countDocuments()).resolves.toBe(0);
-    });
-
-    it('requires a token', async () => {
-      const user = await createTestUser();
-      const res = await request(buildTestApp())
-        .post('/api/auth/login')
-        .set(sameOriginHeaders)
-        .send({ cedula: user.username, password: DEFAULT_TEST_PASSWORD });
-      expect(res.status).toBe(400);
-      expect(apiErrorBodySchema.parse(res.body).error.fields).toHaveProperty([
-        'body.turnstileToken',
-      ]);
-    });
   });
 
   describe('progressive lockout', () => {
@@ -266,7 +222,7 @@ describe('POST /api/auth/login', () => {
     const res = await request(buildTestApp())
       .post('/api/auth/login')
       .set(sameOriginHeaders)
-      .send({ cedula: '001-1234567-2', password: '', turnstileToken: 't' });
+      .send({ cedula: '001-1234567-2', password: '' });
     expect(res.status).toBe(400);
     const { error } = apiErrorBodySchema.parse(res.body);
     expect(error.code).toBe('VALIDATION_ERROR');
@@ -278,7 +234,7 @@ describe('POST /api/auth/login', () => {
     const res = await request(buildTestApp())
       .post('/api/auth/login')
       .set({ ...sameOriginHeaders, Origin: 'https://evil.example' })
-      .send({ cedula: user.username, password: DEFAULT_TEST_PASSWORD, turnstileToken: 't' });
+      .send({ cedula: user.username, password: DEFAULT_TEST_PASSWORD });
     expect(res.status).toBe(403);
     expect(apiErrorBodySchema.parse(res.body).error.code).toBe('FORBIDDEN');
     await expect(SessionModel.countDocuments()).resolves.toBe(0);

@@ -8,7 +8,6 @@ import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
 import { globalRateLimit } from './middleware/rateLimit';
 import { requestLogger } from './middleware/requestLogger';
-import type { TurnstileVerifier } from './modules/auth/turnstile';
 import { API_PREFIX, buildApiRouter } from './routing/apiRoute';
 import { apiRoutes } from './routing/registry';
 import type { ObjectStorage } from './storage/objectStorage';
@@ -29,8 +28,6 @@ export type AppConfig = Pick<
 export interface AppDependencies {
   /** Whether object storage answers (index.ts: HeadBucket on the media bucket). */
   pingS3: () => Promise<boolean>;
-  /** Cloudflare Turnstile check on login (index.ts: siteverify with TURNSTILE_SECRET_KEY). */
-  verifyTurnstile: TurnstileVerifier;
   /** Member photos (plan 5.2): the media bucket, behind the small interface people/photos.ts uses. */
   objectStorage: ObjectStorage;
   /** Voter files (plan 9.1): the imports bucket, behind the same small interface. */

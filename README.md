@@ -29,7 +29,7 @@ npm run superadmin:seed      # a working superadmin, no padrón import needed
 npm run voters:seed          # 20 synthetic voters, generated and imported in one go
 ```
 
-`superadmin:seed` logs in with cédula `00100000001` and password `DevSuperadmin2024!` (override
+`superadmin:seed` logs in with cédula `00100000001` and password `***************` (override
 with `npm run superadmin:seed --workspace=backend -- --cedula <11 digits> --password <text>`). It
 fabricates its own voter record, so it needs nothing else first. It still enrolls TOTP for real
 (superadmin login always requires it) and prints a QR code in the terminal to scan with an
@@ -50,10 +50,10 @@ Browsers accept `Secure` cookies from `http://localhost`, so it works over plain
 you open the app at **http://localhost:3000** (not `127.0.0.1` or a LAN IP; Chrome and Firefox are
 known to work, Safari may drop it). The browser only ever talks to :3000; Next forwards `/api/*` to
 the API, which only accepts state-changing requests whose `Origin` is `APP_ORIGIN`
-(`http://localhost:3000` in `backend/.env`). Turnstile uses Cloudflare's always-pass test keys.
+(`http://localhost:3000` in `backend/.env`).
 
-The `.env.example` values are local-only: the emulator's throwaway credentials and Cloudflare's
-public Turnstile test keys. Real secrets live only in the hosting providers' settings.
+The `.env.example` values are local-only: the emulator's throwaway credentials. Real secrets live
+only in the hosting providers' settings.
 
 ## Scripts
 
@@ -66,7 +66,7 @@ Run from the repository root.
 | `npm run lint` · `npm run typecheck` · `npm test` · `npm run build` | The CI gates; all must pass before a PR merges |
 | `npm run format` | Format with Prettier |
 | `npm run voters:seed` | **Dev only.** Generate 20 synthetic voters and import them, in one step (fixed `--cut dev`) |
-| `npm run superadmin:seed` | **Dev only.** Create the superadmin from a fixed cédula and password (defaults `00100000001` / `DevSuperadmin2024!`, overridable via `--workspace=backend -- --cedula ... --password ...`), with no padrón import needed. Still enrolls real TOTP (prints a QR). Refuses outside `NODE_ENV=development` or if a superadmin exists |
+| `npm run superadmin:seed` | **Dev only.** Create the superadmin from a fixed cédula and password (defaults `00100000001` / `******************`, overridable via `--workspace=backend -- --cedula ... --password ...`), with no padrón import needed. Still enrolls real TOTP (prints a QR). Refuses outside `NODE_ENV=development` or if a superadmin exists |
 | `npm run superadmin:create` | The real flow (used in production too). Create the one superadmin (the owner): asks for the cédula (must be in the imported padrón), phone, a password of at least 14 characters, and enrolls TOTP (terminal QR + otpauth URI, confirmed live). Refuses if a superadmin exists. Built as `dist/scripts/create-superadmin.js` for production |
 | `npm run s3:check` | Put, get and delete a test object in the media and imports buckets of the configured S3 |
 

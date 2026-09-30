@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { messages } from '@/messages/es';
@@ -10,20 +10,6 @@ const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
 const fetchMock = vi.fn<typeof fetch>();
-
-function stubTurnstile() {
-  const options: {
-    current?: { callback: (t: string) => void; 'expired-callback': () => void };
-  } = {};
-  vi.stubGlobal('turnstile', {
-    render: vi.fn((_el: HTMLElement, opts: NonNullable<typeof options.current>) => {
-      options.current = opts;
-      return 'widget-1';
-    }),
-    remove: vi.fn(),
-  });
-  return options;
-}
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
@@ -54,37 +40,32 @@ function renderForm(next?: string) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <LoginForm nonce="test-nonce" next={next} />
+      <LoginForm next={next} />
     </QueryClientProvider>,
   );
 }
 
-async function fillCredentials(turnstileOptions: ReturnType<typeof stubTurnstile>) {
+async function fillCredentials() {
   const user = userEvent.setup();
   await user.type(screen.getByLabelText(messages.auth.login.cedulaLabel), '00112345673');
   await user.type(screen.getByLabelText(messages.auth.login.passwordLabel), 'my-password');
-  act(() => {
-    turnstileOptions.current?.callback('turnstile-token');
-  });
   return user;
 }
 
 describe('LoginForm', () => {
-  it('keeps the submit button disabled until cédula, password and Turnstile are all done', async () => {
-    const turnstile = stubTurnstile();
+  it('keeps the submit button disabled until cédula and password are both done', async () => {
     renderForm();
     const submit = screen.getByRole('button', { name: messages.auth.login.submit });
     expect(submit).toHaveProperty('disabled', true);
 
-    await fillCredentials(turnstile);
+    await fillCredentials();
     expect(submit).toHaveProperty('disabled', false);
   });
 
   it('logs in directly (204) and redirects to /inicio by default', async () => {
-    const turnstile = stubTurnstile();
     respond(204, null);
     renderForm();
-    const user = await fillCredentials(turnstile);
+    const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
 
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/inicio'));
@@ -92,20 +73,15 @@ describe('LoginForm', () => {
       '/api/auth/login',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({
-          cedula: '00112345673',
-          password: 'my-password',
-          turnstileToken: 'turnstile-token',
-        }),
+        body: JSON.stringify({ cedula: '00112345673', password: 'my-password' }),
       }),
     );
   });
 
   it('redirects to a safe `next` path after login', async () => {
-    const turnstile = stubTurnstile();
     respond(204, null);
     renderForm('/padron');
-    const user = await fillCredentials(turnstile);
+    const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
 
     await vi.waitFor(() => expect(push).toHaveBeenCalled());
@@ -113,10 +89,9 @@ describe('LoginForm', () => {
   });
 
   it('ignores an unsafe `next` (an absolute URL) and falls back to /inicio', async () => {
-    const turnstile = stubTurnstile();
     respond(204, null);
     renderForm('https://evil.example/phish');
-    const user = await fillCredentials(turnstile);
+    const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
 
     await vi.waitFor(() => expect(push).toHaveBeenCalled());
@@ -124,7 +99,6 @@ describe('LoginForm', () => {
   });
 
   it('shows the generic invalid-credentials message on a 401', async () => {
-    const turnstile = stubTurnstile();
     respond(
       401,
       apiError(
@@ -133,7 +107,7 @@ describe('LoginForm', () => {
       ),
     );
     renderForm();
-    const user = await fillCredentials(turnstile);
+    const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
 
     expect((await screen.findByRole('alert')).textContent).toBe(
@@ -143,10 +117,9 @@ describe('LoginForm', () => {
   });
 
   it('moves the superadmin to the TOTP step on a 202, then logs in on a valid code', async () => {
-    const turnstile = stubTurnstile();
     respond(202, { totpRequired: true });
     renderForm();
-    const user = await fillCredentials(turnstile);
+    const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
 
     const codeInput = await screen.findByLabelText(messages.auth.totp.codeLabel);
@@ -162,10 +135,9 @@ describe('LoginForm', () => {
   });
 
   it('shows an error and lets the superadmin retry a wrong TOTP code', async () => {
-    const turnstile = stubTurnstile();
     respond(202, { totpRequired: true });
     renderForm();
-    const user = await fillCredentials(turnstile);
+    const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
 
     const codeInput = await screen.findByLabelText(messages.auth.totp.codeLabel);
@@ -186,10 +158,9 @@ describe('LoginForm', () => {
   });
 
   it('returns to the credentials step when the TOTP challenge expired', async () => {
-    const turnstile = stubTurnstile();
     respond(202, { totpRequired: true });
     renderForm();
-    const user = await fillCredentials(turnstile);
+    const user = await fillCredentials();
     await user.click(screen.getByRole('button', { name: messages.auth.login.submit }));
 
     const codeInput = await screen.findByLabelText(messages.auth.totp.codeLabel);

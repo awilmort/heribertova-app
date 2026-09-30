@@ -19,7 +19,7 @@ It replicates LOE's core mechanics (`LOE_FUNCTIONAL_ANALYSIS.md`) with these sco
 | **No affiliation filter** | Anyone who votes in Higüey can be registered, whatever party they belong to. The data has no affiliation field. |
 | **Not public** | No self-registration and no public forms. People are added by users who have permission. |
 | **Login is earned** | Plain members never log in. Aspiring leaders, team leaders and coordinators do. There is exactly one super admin (the project owner). |
-| **Free first** | MongoDB Atlas M0, Vercel Hobby, Render Free, AWS S3 (photos only), Cloudflare Turnstile and GitHub Actions. There is no paid SaaS. |
+| **Free first** | MongoDB Atlas M0, Vercel Hobby, Render Free, AWS S3 (photos only) and GitHub Actions. There is no paid SaaS. |
 | **Out of scope** | Exterior/diaspora, identity verification/KYC, SMS/WhatsApp/email messaging, the LOE wrapper, the public sympathy form, onboarding quiz, incident center, and party-internal structures (CI/ETR/CVP/actas). |
 
 ---
@@ -122,7 +122,7 @@ Vercel (Hobby) — frontend/ : Next.js 16
    │                               MongoDB Atlas M0          AWS S3 bucket (private)
    │                               (AWS us-east-1)           member photos + daily backups
    │                                                          (us-east-1)
-Cloudflare Turnstile (free, login only)    GitHub Actions (CI + daily backup trigger)
+                                            GitHub Actions (CI + daily backup trigger)
 ```
 
 All data services sit in AWS **us-east-1** (Atlas) and **Virginia** (Render, Vercel `iad1`, S3), which is the lowest latency from the DR.
@@ -137,7 +137,6 @@ All data services sit in AWS **us-east-1** (Atlas) and **Virginia** (Render, Ver
 | Backend | **Express 5** (native async error handling), zod validation, `helmet`, `express-rate-limit`, `cookie-parser`, `multer` (memory, small), `sharp`, `exceljs`, `stream-json` (voter import), `argon2`, `otplib` (superadmin TOTP), `pino` | Banana's stack, modernized: Express 5 instead of 4, zod instead of express-validator, argon2id instead of bcryptjs, no deprecated `csurf` |
 | Database | **MongoDB Atlas M0** + **Mongoose 8** | Free. Supports multi-document transactions. No automatic backups on M0, so see §11 |
 | Files | **AWS S3** private bucket, `@aws-sdk/client-s3` + `s3-request-presigner` | Setup steps in Appendix A.2 |
-| Bot protection | **Cloudflare Turnstile** on login | Free, usually invisible to users |
 | CI / cron | **GitHub Actions** | lint, typecheck, test, build; daily backup trigger |
 | Tests | Vitest, `mongodb-memory-server` (replica-set mode, for transactions), Supertest, Playwright | "Well-tested code is non-negotiable" (AGENTS.md) |
 | Monitoring (free) | Render logs; UptimeRobot free on `/health`; Sentry free tier optional | — |
@@ -251,16 +250,15 @@ The server enforces scope on every query and every `:id` route. The UI only hide
 
 ## 7. Authentication
 
-- **Login:** cédula + password, with a Turnstile token verified on the server.
+- **Login:** cédula + password.
 - **Default password = birth date as `DDMMYYYY`** (LOE behavior, chosen because users are not technical). It is set when an account is created: at nomination, or when a coordinator is appointed. It is hashed with argon2id and never stored in plain text. `usingDefaultPassword: true` until the user changes it.
 - **Accepted trade-off:** birth dates are known to anyone who has the padrón, which every party receives, so a default password is guessable. Mitigations:
-  1. Turnstile on login.
-  2. Per-account lockout: 5 failures → 15 min, growing.
-  3. Per-IP rate limit.
-  4. After the first login, a **simple, skippable "Cambie su contraseña" prompt** and a persistent banner while the default is still in use.
-  5. The admin user list shows who still uses the default.
-  6. Login audit.
-  7. The **superadmin never uses a birth-date password**: it gets a strong password plus TOTP and is created by CLI.
+  1. Per-account lockout: 5 failures → 15 min, growing.
+  2. Per-IP rate limit.
+  3. After the first login, a **simple, skippable "Cambie su contraseña" prompt** and a persistent banner while the default is still in use.
+  4. The admin user list shows who still uses the default.
+  5. Login audit.
+  6. The **superadmin never uses a birth-date password**: it gets a strong password plus TOTP and is created by CLI.
 - **Change password:** at `/perfil`. Minimum 8 characters (14 for the superadmin), it cannot equal the birth date (DDMMYYYY or YYYYMMDD, with or without separators), and it requires the current password. Other sessions end; the current one stays.
 - **Forgot password:** there are no SMS/email costs. The user asks their coordinator, who can **"Restablecer a fecha de nacimiento"**. That resets the password to the default, unlocks the account, revokes sessions and is audited. The caller must have the user in scope and **outrank** them (plan 3.2), so nobody resets a peer or a superior; the superadmin can reset anyone else. The superadmin's own password is never reset to a birth date.
 - **Superadmin second factor (plan 3.3):** a right password answers `202 {totpRequired: true}` with a 5-minute `__Host-totp` challenge cookie, which opens nothing but `POST /auth/totp/verify` (it lives in its own `totpChallenges` collection, never in `sessions`). A valid RFC 6238 code (SHA-1, 6 digits, 30 s, ±1 step) turns it into a session. Each code is accepted once (replay), a challenge takes at most 5 codes (claimed atomically), wrong codes count toward the same progressive lockout as wrong passwords (a right password alone does not reset it), and failed codes are rate-limited per IP. The superadmin is created only by `create-superadmin` (A.3), from the owner's voter record, and enrolls the authenticator app before the account exists.
@@ -311,7 +309,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 
 | Route | Screen | LOE equivalent |
 |---|---|---|
-| `/login` | Cédula (mask `000-0000000-0`), password, Turnstile, "¿Olvidó su contraseña? Contacte a su coordinador" | login |
+| `/login` | Cédula (mask `000-0000000-0`), password, "¿Olvidó su contraseña? Contacte a su coordinador" | login |
 | `/inicio` | Redirects to the role's landing page | — |
 | `/panel` | Leader dashboard: my members, progress to 8 (radial red/amber/green), goal 20, aspirants I nominated, members' birthdays this month, promotion celebration | ci-dashboard |
 | `/panel/general` | Coordinators: coverage by sector → recinto → colegio, leaders' progress, recintos without members, members and voters by **age band** (the file has no sex field), birthdays | dashboard / provincial |
@@ -348,7 +346,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 
 ## 12. Security checklist (proportionate)
 
-- HTTPS only (Vercel/Render), HSTS, and helmet with a strict CSP (Turnstile is the only third-party script).
+- HTTPS only (Vercel/Render), HSTS, and helmet with a strict CSP (no third-party scripts).
 - zod on every input; React escapes output; no raw HTML.
 - Rate limits: global per IP, login per IP+username, voter lookups with a daily per-user quota (for example 300; configurable), and exports.
 - Least privilege:
@@ -368,7 +366,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 | **Vercel Hobby** | Terms of service say "personal, non-commercial". A political campaign is a gray area | If the campaign wants zero risk, or needs team access: Pro (~US$20/mo) |
 | **Atlas M0** | 512 MB; shared CPU; throughput cap (~100 ops/s); no backups (solved in §11) | Only if storage or throughput runs short: Flex/M10 |
 | **AWS S3** | Accounts opened after 15 Jul 2025 get the new Free plan, which is time-limited credits rather than a 12-month free tier; check the current terms at aws.amazon.com/free | Expected cost after credits: pennies to about US$1/mo (≈ 10 GB photos + backups). *Free alternative if ever wanted:* Cloudflare R2 (10 GB free forever, same S3 API) |
-| **Turnstile, GitHub Actions, UptimeRobot, Sentry (dev tier)** | Generous free tiers | — |
+| **GitHub Actions, UptimeRobot, Sentry (dev tier)** | Generous free tiers | — |
 
 ## 14. Open items
 
@@ -381,7 +379,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 ## Appendix A — Service setup, step by step
 
 **When:** plan Phase 10.1, after the app is complete and verified locally.
-- **Development** runs entirely on the developer machine: docker-compose provides MongoDB and an S3-compatible emulator, Cloudflare's Turnstile test keys are used, and the Next dev server rewrites `/api` to `localhost:4000`. **No cloud accounts are needed to develop.**
+- **Development** runs entirely on the developer machine: docker-compose provides MongoDB and an S3-compatible emulator, and the Next dev server rewrites `/api` to `localhost:4000`. **No cloud accounts are needed to develop.**
 - The cloud hosts **prod only**. The `-dev` names below are optional, only for a future staging environment.
 
 ### A.1 MongoDB Atlas (M0, free)
@@ -451,8 +449,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
    - `NODE_ENV=production`
    - `MONGODB_URI`
    - AWS vars (A.2)
-   - `TURNSTILE_SECRET_KEY`
-   - `TOTP_ENC_KEY`
+   - `TOTP_ENC_KEY` (32 random bytes, base64: `openssl rand -base64 32`; keep this value somewhere safe — losing it means re-enrolling the superadmin's TOTP, and it must be the same value the local `superadmin:create` run in step 7 uses)
    - `APP_ORIGIN=https://heribertova.do` (the only `Origin` the CSRF guard accepts)
    - optionally `LOGIN_RATE_LIMIT_MAX` (default 10 failed logins per IP + cédula per 15 min)
 
@@ -462,7 +459,7 @@ The layout is designed for phones first (360 px), with large tap targets and pla
 
 ### A.4 Vercel (web)
 1. vercel.com → sign in with GitHub → **Add New Project** → import the repo, **Root Directory** `frontend`, framework Next.js.
-2. Environment variable `API_ORIGIN=https://heribertova-api.onrender.com` (used by `next.config.ts` rewrites `/api/:path*` → `${API_ORIGIN}/api/:path*`). Also `NEXT_PUBLIC_TURNSTILE_SITE_KEY`.
+2. Environment variable `API_ORIGIN=https://heribertova-api.onrender.com` (used by `next.config.ts` rewrites `/api/:path*` → `${API_ORIGIN}/api/:path*`).
 3. Project settings → Functions region **Washington, D.C. (iad1)**.
 4. **Domains:** add `heribertova.do` and `www.heribertova.do` (redirect www → apex).
 
@@ -474,14 +471,11 @@ At whichever DNS host the domain uses (NIC.do's DNS, or Cloudflare free DNS if n
 
 Wait for Vercel/Render to show the certificate as issued.
 
-### A.6 Cloudflare Turnstile
-dash.cloudflare.com (free account) → **Turnstile → Add widget**: name `heribertova-login`, hostname `heribertova.do`, mode **Managed**. The site key goes to Vercel and the secret key goes to Render.
-
-### A.7 GitHub
+### A.6 GitHub
 - Repo **private**.
 - Branch protection on `main` (PR + green CI).
 - Workflows: `ci.yml` (on PR). No backup workflow: backups are a manual, in-app action (`POST /api/backups`, §11), not a scheduled GitHub Actions job.
 - Enable Dependabot security updates and secret scanning.
 
-### A.8 UptimeRobot (optional, free)
+### A.7 UptimeRobot (optional, free)
 Monitor `https://heribertova.do/api/health` every 5 min with email alerts. This also keeps Render Free warm until the Starter upgrade.

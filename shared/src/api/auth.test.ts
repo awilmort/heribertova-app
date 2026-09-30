@@ -7,10 +7,10 @@ import {
   totpVerifyRequestSchema,
 } from './auth';
 
-const validLogin = { cedula: '00112345672', password: '15031985', turnstileToken: 'token' };
+const validLogin = { cedula: '00112345672', password: '15031985' };
 
 describe('loginRequestSchema', () => {
-  it('accepts an unformatted cédula, a password and a Turnstile token', () => {
+  it('accepts an unformatted cédula and a password', () => {
     expect(loginRequestSchema.parse(validLogin)).toEqual(validLogin);
   });
 
@@ -28,10 +28,6 @@ describe('loginRequestSchema', () => {
     expect(loginRequestSchema.safeParse({ ...validLogin, password: 'x'.repeat(257) }).success).toBe(
       false,
     );
-  });
-
-  it('requires the Turnstile token', () => {
-    expect(loginRequestSchema.safeParse({ ...validLogin, turnstileToken: '' }).success).toBe(false);
   });
 });
 

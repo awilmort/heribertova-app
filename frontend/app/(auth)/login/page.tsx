@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
 import { LoginForm } from '@/components/auth/login-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { messages } from '@/messages/es';
@@ -11,10 +10,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  const [nonce, { next }] = await Promise.all([
-    headers().then((h) => h.get('x-nonce') ?? ''),
-    searchParams,
-  ]);
+  const { next } = await searchParams;
 
   return (
     <Card>
@@ -25,7 +21,7 @@ export default async function LoginPage({
         <CardDescription>{messages.auth.loginSubtitle}</CardDescription>
       </CardHeader>
       <CardContent>
-        <LoginForm nonce={nonce} next={next} />
+        <LoginForm next={next} />
       </CardContent>
     </Card>
   );

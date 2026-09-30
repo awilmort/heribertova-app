@@ -81,7 +81,7 @@ function mockEmptyResponse(status: number) {
 }
 
 describe('api.login', () => {
-  const request = { cedula: '00112345673', password: 'secret', turnstileToken: 'tok' };
+  const request = { cedula: '00112345673', password: 'secret' };
 
   it('reports no TOTP step on a 204 (the session cookie is already set)', async () => {
     mockEmptyResponse(204);
