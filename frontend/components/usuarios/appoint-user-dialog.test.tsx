@@ -155,6 +155,37 @@ describe('AppointUserDialog', () => {
     expect(screen.queryByText(messages.roles.general_coordinator)).toBeNull();
   });
 
+  it('does not ask for a phone number when the voter is already a member', async () => {
+    const memberCard: VoterCard = {
+      ...voterCard,
+      membership: { status: 'member', level: 'member', leaderName: null },
+    };
+    routeFetch({
+      '/api/me': () => jsonResponse(200, meWithRole('superadmin')),
+      '/api/voters/': () => jsonResponse(200, memberCard),
+      '/api/sectors': () => jsonResponse(200, sectors),
+      '/api/users': () => jsonResponse(201, { id: 'new-user' }),
+    });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByRole('button', { name: messages.admin.usuarios.appoint }));
+    await user.type(screen.getByLabelText(text.cedulaLabel), '0029876543-2');
+    await user.click(screen.getByRole('button', { name: text.search }));
+    await screen.findByText('PEDRO GÓMEZ');
+
+    expect(screen.queryByLabelText(text.phoneLabel)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: text.submit }));
+
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const appointCall = fetchMock.mock.calls.find(([input]) =>
+      (typeof input === 'string' ? input : (input as Request).url).includes('/api/users'),
+    );
+    const body = JSON.parse((appointCall?.[1]?.body as string) ?? '{}') as Record<string, unknown>;
+    expect(body.phone).toBeUndefined();
+  });
+
   it('appoints the coordinator and closes the dialog', async () => {
     routeFetch({
       '/api/me': () => jsonResponse(200, meWithRole('superadmin')),

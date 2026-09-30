@@ -85,6 +85,11 @@ export function AppointUserDialog() {
     if (isCedula(digits)) lookup.mutate(digits);
   }
 
+  // An existing member (or someone already registered outside the caller's scope) already has a
+  // `people` record with contact details on file; the backend only uses `phone`/`phoneWhatsapp` to
+  // create a new one, so there is no need to ask for it again.
+  const needsPhone = voter?.membership.status === 'none';
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!voter) return;
@@ -92,12 +97,12 @@ export function AppointUserDialog() {
       cedula: voter.cedula,
       role,
       recintoScopes: role === 'recinto_coordinator' ? recintoScopes : [],
-      phone: phoneDigits(phone),
-      phoneWhatsapp,
+      phone: needsPhone ? phoneDigits(phone) : undefined,
+      phoneWhatsapp: needsPhone ? phoneWhatsapp : undefined,
     });
   }
 
-  const phoneValid = phoneSchema.safeParse(phoneDigits(phone)).success;
+  const phoneValid = !needsPhone || phoneSchema.safeParse(phoneDigits(phone)).success;
   const canSubmit =
     voter !== null && phoneValid && (role !== 'recinto_coordinator' || recintoScopes.length > 0);
   const lookupError =
@@ -167,11 +172,11 @@ export function AppointUserDialog() {
 
             {role === 'recinto_coordinator' && (
               <div className="flex flex-col gap-2">
-                <label htmlFor={recintoScopesId} className="text-sm font-medium">
+                <p id={recintoScopesId} className="text-sm font-medium">
                   {text.recintoScopesLabel}
-                </label>
+                </p>
                 <RecintoPicker
-                  id={recintoScopesId}
+                  labelledBy={recintoScopesId}
                   value={recintoScopes}
                   onChange={setRecintoScopes}
                 />
@@ -179,26 +184,30 @@ export function AppointUserDialog() {
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
-              <label htmlFor={phoneId} className="text-sm font-medium">
-                {text.phoneLabel}
-              </label>
-              <Input
-                id={phoneId}
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                inputMode="numeric"
-              />
-            </div>
+            {needsPhone && (
+              <>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor={phoneId} className="text-sm font-medium">
+                    {text.phoneLabel}
+                  </label>
+                  <Input
+                    id={phoneId}
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    inputMode="numeric"
+                  />
+                </div>
 
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={phoneWhatsapp}
-                onChange={(event) => setPhoneWhatsapp(event.target.checked)}
-              />
-              {text.phoneWhatsappLabel}
-            </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={phoneWhatsapp}
+                    onChange={(event) => setPhoneWhatsapp(event.target.checked)}
+                  />
+                  {text.phoneWhatsappLabel}
+                </label>
+              </>
+            )}
 
             {appoint.isError && (
               <p role="alert" className="text-sm text-destructive">

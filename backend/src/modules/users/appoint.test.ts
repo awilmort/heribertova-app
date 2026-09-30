@@ -116,6 +116,64 @@ describe('appointCoordinator', () => {
     expect(person).toMatchObject({ phone: '8299990000', phoneWhatsapp: false, level: 'member' });
   });
 
+  it('appoints an existing member with no phone in the request at all', async () => {
+    const admin = await createTestUser({ role: 'superadmin' });
+    const voter = await voterAt(8);
+    const member = await createTestPerson({
+      cedula: voter._id,
+      registeredBy: new Types.ObjectId(),
+      phone: '8299990000',
+      phoneWhatsapp: false,
+      level: 'member',
+      voterSnapshot: {
+        fullName: voter.fullName,
+        recintoKey: voter.recintoKey,
+        recintoName: 'RECINTO',
+        colegioId: voter.colegioId,
+        sector: voter.sector,
+        birthDate: voter.birthDate,
+      },
+    });
+
+    const user = await appointCoordinator(
+      actorWith(admin),
+      requestFor(voter._id, {
+        role: 'recinto_coordinator',
+        recintoScopes: [voter.recintoKey],
+        phone: undefined,
+        phoneWhatsapp: undefined,
+      }),
+    );
+
+    expect(user.personId).toEqual(member._id);
+    const person = await PersonModel.findById(member._id).lean();
+    expect(person).toMatchObject({ phone: '8299990000', phoneWhatsapp: false, level: 'member' });
+  });
+
+  it('requires a phone to appoint a voter who is not a member yet, creating nothing', async () => {
+    const admin = await createTestUser({ role: 'superadmin' });
+    const voter = await voterAt(9);
+
+    await expect(
+      appointCoordinator(
+        actorWith(admin),
+        requestFor(voter._id, {
+          role: 'recinto_coordinator',
+          recintoScopes: [voter.recintoKey],
+          phone: undefined,
+          phoneWhatsapp: undefined,
+        }),
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      fields: {
+        'body.phone': ['El teléfono es obligatorio para una persona que aún no es miembro.'],
+      },
+    });
+    await expect(PersonModel.countDocuments()).resolves.toBe(1);
+  });
+
   it('answers 404 for a cédula that is not an active Higüey voter, creating nothing', async () => {
     const admin = await createTestUser({ role: 'superadmin' });
     // recintoScopes empty: isolates the voter lookup from the recinto-validation check below.

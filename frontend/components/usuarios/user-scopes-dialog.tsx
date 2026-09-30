@@ -52,10 +52,14 @@ export function UserScopesDialog({
           <DialogTitle>{text.title(user.person.fullName)}</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
-          <label htmlFor={recintoScopesId} className="sr-only">
+          <p id={recintoScopesId} className="sr-only">
             {messages.admin.usuarios.appointDialog.recintoScopesLabel}
-          </label>
-          <RecintoPicker id={recintoScopesId} value={recintoScopes} onChange={setRecintoScopes} />
+          </p>
+          <RecintoPicker
+            labelledBy={recintoScopesId}
+            value={recintoScopes}
+            onChange={setRecintoScopes}
+          />
           {save.isError && (
             <p role="alert" className="text-sm text-destructive">
               {save.error instanceof ApiError ? save.error.message : messages.errors.generic}

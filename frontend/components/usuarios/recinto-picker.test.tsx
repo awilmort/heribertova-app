@@ -69,14 +69,14 @@ describe('RecintoPicker', () => {
     renderPicker([], onChange);
     await screen.findByText('LICEO JUAN PABLO DUARTE');
 
-    await user.selectOptions(screen.getByRole('listbox'), ['liceo--centro-ciudad']);
+    await user.click(screen.getByRole('checkbox', { name: 'LICEO JUAN PABLO DUARTE' }));
 
     expect(onChange).toHaveBeenLastCalledWith(['liceo--centro-ciudad']);
   });
 
   it('shows the given value as selected', async () => {
     renderPicker(['escuela--centro-ciudad'], () => {});
-    const option = (await screen.findByText('ESCUELA PRIMARIA')) as HTMLOptionElement;
-    expect(option.selected).toBe(true);
+    const checkbox = await screen.findByRole('checkbox', { name: 'ESCUELA PRIMARIA' });
+    expect(checkbox).toHaveProperty('checked', true);
   });
 });

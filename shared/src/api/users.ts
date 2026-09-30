@@ -16,15 +16,16 @@ export type AppointableRole = z.infer<typeof appointableRoleSchema>;
 /**
  * `POST /api/users`: appoints a coordinator from an existing voter (a member already, or not yet
  * one). `phone`/`phoneWhatsapp` are used only when the cédula has no `people` record yet, to create
- * one; an existing member keeps their own contact details.
+ * one; an existing member keeps their own contact details, so the request need not carry them (the
+ * server requires them itself when it turns out a new `people` record is needed).
  */
 export const appointUserRequestSchema = z
   .object({
     cedula: cedulaSchema,
     role: appointableRoleSchema,
     recintoScopes: z.array(z.string()).default([]),
-    phone: phoneSchema,
-    phoneWhatsapp: z.boolean(),
+    phone: phoneSchema.optional(),
+    phoneWhatsapp: z.boolean().optional(),
   })
   .refine((data) => (data.role === 'recinto_coordinator') === data.recintoScopes.length > 0, {
     message: 'Indique al menos un recinto para un coordinador de recinto.',

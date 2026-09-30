@@ -36,6 +36,11 @@ async function personFor(
   if (!voter) {
     throw new AppError(404, 'NOT_FOUND', 'Esta cédula no figura en el padrón de Higüey.');
   }
+  if (!request.phone) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Los datos enviados no son válidos.', {
+      'body.phone': ['El teléfono es obligatorio para una persona que aún no es miembro.'],
+    });
+  }
   const recinto = await RecintoModel.findById(voter.recintoKey).session(session).lean();
   if (!recinto) throw new Error(`Voter ${voter._id} votes in unknown recinto ${voter.recintoKey}`);
 
@@ -52,7 +57,7 @@ async function personFor(
           birthDate: voter.birthDate,
         },
         phone: request.phone,
-        phoneWhatsapp: request.phoneWhatsapp,
+        phoneWhatsapp: request.phoneWhatsapp ?? true,
         level: 'coordinator',
         registeredBy,
         docStatus: 'pending',
