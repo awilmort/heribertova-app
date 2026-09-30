@@ -39,6 +39,7 @@ import {
   type LeadersQuery,
   type ListPeopleQuery,
   type LoginRequest,
+  type ManualPromotionRequest,
   type NominationRequest,
   type PhotoKind,
   type PromotionSettings,
@@ -252,6 +253,10 @@ export const api = {
       schema: nominationResponseSchema,
       init: jsonInit('POST', request),
     }),
+  /** `POST /api/promotions/:personId/promote` (plan 6.1): a superadmin/general coordinator can
+   * promote an aspirant to team leader early, without waiting for the member-count threshold. */
+  promoteManual: (personId: string, request: ManualPromotionRequest) =>
+    apiRequestVoid(`/promotions/${personId}/promote`, jsonInit('POST', request)),
   /** `/mi-recinto` (plan 7.1): stats cards for one recinto, scope-checked server-side. */
   recintoSummary: (key: string) =>
     apiRequest(`/recintos/${key}/summary`, { schema: recintoSummarySchema }),

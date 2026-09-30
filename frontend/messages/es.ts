@@ -258,6 +258,15 @@ export const messages = {
       showTeam: 'Ver equipo',
       hideTeam: 'Ocultar equipo',
       teamEmpty: 'Sin miembros todavía.',
+      promote: 'Promover a líder de equipo',
+    },
+    promoteDialog: {
+      title: (name: string) => `Promover a ${name}`,
+      body: 'Se promoverá a líder de equipo ahora mismo, sin esperar el mínimo de miembros.',
+      reasonLabel: 'Motivo',
+      submit: 'Promover',
+      submitting: 'Promoviendo…',
+      cancel: 'Cancelar',
     },
     nominateDialog: {
       title: 'Nominar aspirante',
@@ -289,6 +298,7 @@ export const messages = {
     },
     success: {
       nominated: 'El aspirante fue nominado.',
+      promoted: 'El aspirante fue promovido a líder de equipo.',
     },
   },
   miRecinto: {

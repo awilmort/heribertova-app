@@ -152,55 +152,57 @@ export function UsersTable() {
                     <StatusBadges user={user} />
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          {text.table.actions}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            if (
-                              window.confirm(
-                                text.confirm[user.isActive ? 'deactivate' : 'activate'](
-                                  user.person.fullName,
-                                ),
-                              )
-                            ) {
-                              setActive.mutate({ id: user.id, active: !user.isActive });
-                            }
-                          }}
-                        >
-                          {user.isActive ? text.actions.deactivate : text.actions.activate}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            if (window.confirm(text.confirm.resetPassword(user.person.fullName))) {
-                              resetPassword.mutate(user.id);
-                            }
-                          }}
-                        >
-                          {text.actions.resetPassword}
-                        </DropdownMenuItem>
-                        {user.locked && (
+                    {user.role !== 'superadmin' && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            {text.table.actions}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onSelect={() => {
-                              if (window.confirm(text.confirm.unlock(user.person.fullName))) {
-                                unlock.mutate(user.id);
+                              if (
+                                window.confirm(
+                                  text.confirm[user.isActive ? 'deactivate' : 'activate'](
+                                    user.person.fullName,
+                                  ),
+                                )
+                              ) {
+                                setActive.mutate({ id: user.id, active: !user.isActive });
                               }
                             }}
                           >
-                            {text.actions.unlock}
+                            {user.isActive ? text.actions.deactivate : text.actions.activate}
                           </DropdownMenuItem>
-                        )}
-                        {user.role === 'recinto_coordinator' && (
-                          <DropdownMenuItem onSelect={() => setEditingScopesFor(user)}>
-                            {text.actions.editScopes}
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              if (window.confirm(text.confirm.resetPassword(user.person.fullName))) {
+                                resetPassword.mutate(user.id);
+                              }
+                            }}
+                          >
+                            {text.actions.resetPassword}
                           </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          {user.locked && (
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                if (window.confirm(text.confirm.unlock(user.person.fullName))) {
+                                  unlock.mutate(user.id);
+                                }
+                              }}
+                            >
+                              {text.actions.unlock}
+                            </DropdownMenuItem>
+                          )}
+                          {user.role === 'recinto_coordinator' && (
+                            <DropdownMenuItem onSelect={() => setEditingScopesFor(user)}>
+                              {text.actions.editScopes}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </td>
                 </tr>
               ))}

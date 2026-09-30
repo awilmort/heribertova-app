@@ -1,9 +1,10 @@
 'use client';
 
-import type { LeaderLevel } from '@heribertova/shared';
+import type { LeaderLevel, LeaderListItem } from '@heribertova/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { NominateAspirantDialog } from '@/components/lideres/nominate-aspirant-dialog';
+import { PromoteLeaderDialog } from '@/components/lideres/promote-leader-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NativeSelect } from '@/components/ui/native-select';
@@ -18,9 +19,11 @@ const text = messages.lideres;
  * the "Nominar aspirante" action for roles that hold `leaders.nominate`. */
 export function LeadersList() {
   const canNominate = usePermission('leaders.nominate');
+  const canPromote = usePermission('leaders.promoteManual');
   const canExport = usePermission('people.export');
   const [level, setLevel] = useState<LeaderLevel | ''>('');
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [promoting, setPromoting] = useState<LeaderListItem | null>(null);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['leaders', level],
@@ -82,16 +85,27 @@ export function LeadersList() {
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="self-start"
-                onClick={() => toggle(leader.id)}
-                aria-expanded={expanded.has(leader.id)}
-              >
-                {expanded.has(leader.id) ? text.card.hideTeam : text.card.showTeam}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggle(leader.id)}
+                  aria-expanded={expanded.has(leader.id)}
+                >
+                  {expanded.has(leader.id) ? text.card.hideTeam : text.card.showTeam}
+                </Button>
+                {canPromote && leader.level === 'aspiring_leader' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPromoting(leader)}
+                  >
+                    {text.card.promote}
+                  </Button>
+                )}
+              </div>
               {expanded.has(leader.id) &&
                 (leader.team.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{text.card.teamEmpty}</p>
@@ -111,6 +125,13 @@ export function LeadersList() {
           </Card>
         ))}
       </div>
+
+      {promoting && (
+        <PromoteLeaderDialog
+          leader={promoting}
+          onOpenChange={(open) => !open && setPromoting(null)}
+        />
+      )}
     </div>
   );
 }

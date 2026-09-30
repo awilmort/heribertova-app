@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { NativeSelect } from '@/components/ui/native-select';
+import { AppointUserDialog } from '@/components/usuarios/appoint-user-dialog';
 import { api, ApiError } from '@/lib/api';
 import { messages } from '@/messages/es';
 
@@ -67,6 +68,7 @@ export function AssignCoordinatorsDialog({
         <DialogHeader>
           <DialogTitle>{text.title(recinto.name)}</DialogTitle>
         </DialogHeader>
+        <AppointUserDialog />
         <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
           <label htmlFor={pickerId} className="text-sm font-medium">
             {text.coordinatorsLabel}
