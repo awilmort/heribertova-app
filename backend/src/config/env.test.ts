@@ -30,7 +30,7 @@ describe('loadEnv', () => {
       LOGIN_RATE_LIMIT_MAX: 10,
       VOTER_LOOKUP_DAILY_QUOTA: 300,
       EXPORTS_DAILY_QUOTA: 50,
-      AWS_REGION: 'us-east-1',
+      AWS_REGION: 'us-east-2',
       S3_FORCE_PATH_STYLE: false,
     });
   });

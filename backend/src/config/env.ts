@@ -40,7 +40,7 @@ const envSchema = z.object({
     }),
 
   // Object storage: AWS S3 in production, the S3-compatible emulator locally (docker-compose.dev.yml).
-  AWS_REGION: z.string().min(1).default('us-east-1'),
+  AWS_REGION: z.string().min(1).default('us-east-2'),
   AWS_ACCESS_KEY_ID: z.string().min(1),
   AWS_SECRET_ACCESS_KEY: z.string().min(1),
   /** Custom S3 API endpoint (the local emulator). Leave unset in production so the SDK targets AWS. */

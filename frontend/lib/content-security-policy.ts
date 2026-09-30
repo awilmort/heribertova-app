@@ -8,7 +8,7 @@
  * - Later phases extend this deliberately (photo URLs from S3 in 5.2).
  * - connect-src also allows the imports bucket host, since `/admin/padron` (plan 9.1) PUTs the voter
  *   file straight from the browser to a presigned S3 URL: the local MinIO emulator in dev, AWS S3 in
- *   production (`us-east-1`, the only region this project deploys to — HERIBERTO_ARCHITECTURE.md).
+ *   production (`us-east-2`, the region the buckets actually live in — HERIBERTO_ARCHITECTURE.md).
  */
 export function buildContentSecurityPolicy(nonce: string, isDev: boolean): string {
   const directives: Record<string, string[]> = {
@@ -24,7 +24,7 @@ export function buildContentSecurityPolicy(nonce: string, isDev: boolean): strin
     'font-src': ["'self'"],
     'connect-src': [
       "'self'",
-      ...(isDev ? ['http://localhost:9000'] : ['https://*.s3.us-east-1.amazonaws.com']),
+      ...(isDev ? ['http://localhost:9000'] : ['https://*.s3.us-east-2.amazonaws.com']),
     ],
     'frame-src': ["'none'"],
     'object-src': ["'none'"],

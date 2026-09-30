@@ -44,7 +44,7 @@ describe('buildContentSecurityPolicy', () => {
       "'self' http://localhost:9000",
     );
     expect(directive(buildContentSecurityPolicy('n', false), 'connect-src')).toBe(
-      "'self' https://*.s3.us-east-1.amazonaws.com",
+      "'self' https://*.s3.us-east-2.amazonaws.com",
     );
   });
 });
