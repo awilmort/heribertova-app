@@ -12,7 +12,7 @@ import type { QueryFilter, Types } from 'mongoose';
 import { CAMPAIGN_TIME_ZONE, campaignDate, startOfCampaignDay } from '../../lib/campaignDay';
 import type { Actor } from '../audit/service';
 import { PersonModel, type Person } from '../people/model';
-import { scopeFilter } from '../people/scope';
+import { scopeFilter, superadminPersonId } from '../people/scope';
 import { LeadershipEventModel } from '../promotions/model';
 import { coverageByRecinto } from '../recintos/service';
 import { RecintoModel, type Recinto } from '../recintos/model';
@@ -205,7 +205,14 @@ export async function getGeneralDashboard(actor: Actor): Promise<GeneralDashboar
   // disagree with those two endpoints on "how many people are in my scope" (plan 8.2's "Done when:
   // reports reconcile with the dashboard"). `recintoKeys`-only scoping stays right for the
   // recinto/voter side just below (coverage, voter totals), which has no "ancestors" concept.
-  const personMatch: QueryFilter<Person> = { deletedAt: null, ...scopeFilter(actor.user) };
+  // `/api/people`'s default is narrower still (`scope=own`, not this full `scopeFilter`); this
+  // dashboard stays reconciled with its `scope=all` instead, which is what `/reportes` also uses.
+  const excludedSuperadminId = await superadminPersonId();
+  const personMatch: QueryFilter<Person> = {
+    deletedAt: null,
+    ...(excludedSuperadminId ? { _id: { $ne: excludedSuperadminId } } : {}),
+    ...scopeFilter(actor.user),
+  };
   const birthdayMatch = {
     $expr: { $eq: [{ $substrBytes: ['$voterSnapshot.birthDate', 5, 2] }, monthStr] },
   };

@@ -87,7 +87,7 @@ export async function exportPeopleXlsx(
 ): Promise<void> {
   await assertExportQuota(actor, dailyQuota, now);
 
-  const filter = personFilter(actor.user, query);
+  const filter = await personFilter(actor.user, query);
   const exportedBy = await exporterName(actor);
 
   const workbook = startXlsxResponse(res, `miembros-${campaignDate(now)}.xlsx`);

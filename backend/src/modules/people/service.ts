@@ -6,6 +6,7 @@ import {
   type ListPeopleResponse,
   type PersonDetail,
   type PersonLevel,
+  type PersonScope,
   type PersonStatus,
   type PersonSummary,
   type UpdatePersonRequest,
@@ -17,7 +18,7 @@ import { audit, type Actor } from '../audit/service';
 import { onMemberCountChanged } from '../promotions/service';
 import { VoterModel } from '../voters/model';
 import { checkEligibility } from './policy';
-import { assertInScope, scopeFilter, type ScopeUser } from './scope';
+import { assertInScope, scopeFilter, superadminPersonId, type ScopeUser } from './scope';
 import { PersonModel, type Person } from './model';
 
 /** Mongo's duplicate-key error, optionally naming the index it tripped on `keyPattern`. */
@@ -216,14 +217,25 @@ export interface PersonFilterOptions {
   /** Distinct from `docStatus`: `'partial'` doesn't say which of the two photos is missing, and the
    * cédula photo is the one the registration flow requires (plan 8.2's "members missing photos"). */
   missingCedulaPhoto?: boolean;
+  /** `'own'` (the caller's own subtree) or `'all'` (their full `scopeFilter`); omitted means `'all'`,
+   * so `/reportes` and the exports module, which never set this, keep meaning the full scope they
+   * always have — see `PersonScope`. */
+  scope?: PersonScope;
 }
 
-/** The caller's scope (`scopeFilter`), optionally narrowed by a name/cédula/nickname search,
- * status/docStatus/level filters, and `/reportes`'s own sector/recinto/colegio/missing-photo
- * filters (plan 8.2). Shared by `listPeople` and the exports module (plan 6.4), so no two callers
- * ever drift on what "the same filters" means. */
-export function personFilter(user: ScopeUser, options: PersonFilterOptions): QueryFilter<Person> {
-  const conditions: QueryFilter<Person>[] = [{ deletedAt: null }, scopeFilter(user)];
+/** The caller's scope (`scopeFilter`), or just their own subtree with `scope: 'own'` (`/equipo`'s
+ * default), optionally narrowed by a name/cédula/nickname search, status/docStatus/level filters,
+ * and `/reportes`'s own sector/recinto/colegio/missing-photo filters (plan 8.2). Shared by
+ * `listPeople` and the exports module (plan 6.4), so no two callers ever drift on what "the same
+ * filters" means, and `superadminPersonId` (`./scope`) applies everywhere at once. */
+export async function personFilter(
+  user: ScopeUser,
+  options: PersonFilterOptions,
+): Promise<QueryFilter<Person>> {
+  const conditions: QueryFilter<Person>[] = [{ deletedAt: null }];
+  conditions.push(options.scope === 'own' ? { ancestors: user.personId } : scopeFilter(user));
+  const excludedId = await superadminPersonId();
+  if (excludedId) conditions.push({ _id: { $ne: excludedId } });
   if (options.status) conditions.push({ status: options.status });
   if (options.docStatus) conditions.push({ docStatus: options.docStatus });
   if (options.level) conditions.push({ level: options.level });
@@ -242,13 +254,14 @@ export function personFilter(user: ScopeUser, options: PersonFilterOptions): Que
   return { $and: conditions };
 }
 
-/** `GET /api/people` (plan 5.1): the caller's scope (`scopeFilter`), optionally narrowed by a
- * name/cédula/nickname search and status/docStatus filters. */
+/** `GET /api/people` (plan 5.1): the caller's own subtree by default, or their full scope with
+ * `scope=all` (`personFilter`), optionally narrowed by a name/cédula/nickname search and
+ * status/docStatus filters. */
 export async function listPeople(
   actor: Actor,
   query: ListPeopleQuery,
 ): Promise<ListPeopleResponse> {
-  const filter = personFilter(actor.user, query);
+  const filter = await personFilter(actor.user, query);
   const skip = (query.page - 1) * query.pageSize;
   const [people, total] = await Promise.all([
     PersonModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(query.pageSize).lean(),

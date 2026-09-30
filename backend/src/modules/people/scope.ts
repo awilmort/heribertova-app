@@ -1,6 +1,6 @@
 import type { QueryFilter, Types } from 'mongoose';
 import { AppError } from '../../lib/errors';
-import type { User } from '../users/model';
+import { UserModel, type User } from '../users/model';
 import type { Person, VoterSnapshot } from './model';
 
 /** What scope depends on for a logged-in user. */
@@ -65,4 +65,15 @@ export function isInScope(user: ScopeUser, person: ScopedPerson): boolean {
 
 function isUnder(person: ScopedPerson, personId: Types.ObjectId): boolean {
   return person.ancestors.some((ancestor) => ancestor.equals(personId));
+}
+
+/**
+ * The superadmin's own `people` record, if one exists — an operator account, not a campaign member,
+ * so anywhere people are listed or counted for display (`/equipo`, `/reportes`, the exports module,
+ * the general dashboard) excludes it explicitly, on top of whatever `scopeFilter` already allows.
+ * At most one exists, backed by `users`' partial unique index on `role: 'superadmin'`.
+ */
+export async function superadminPersonId(): Promise<Types.ObjectId | null> {
+  const superadmin = await UserModel.findOne({ role: 'superadmin' }).select('personId').lean();
+  return superadmin?.personId ?? null;
 }

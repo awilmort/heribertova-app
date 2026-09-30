@@ -218,6 +218,40 @@ describe('GET /api/people', () => {
     expect(res.status).toBe(200);
     expect((res.body as { total: number }).total).toBe(1);
   });
+
+  it('narrows to the caller’s own subtree with scope=own, even for a general coordinator', async () => {
+    const registrar = await createTestUser({ role: 'general_coordinator' });
+    const { token } = await createSession(registrar, { ip: null, userAgent: null });
+    await createTestPerson({
+      registeredBy: registrar._id,
+      leaderId: registrar.personId,
+      ancestors: [registrar.personId],
+    });
+    await createTestPerson({ registeredBy: new Types.ObjectId() }); // someone else's, unrelated
+
+    // Default (scope omitted): the caller's full scope, which for a general coordinator is
+    // everyone — their own account's person record, the one under them, and the unrelated one.
+    const all = await request(app).get('/api/people').set('Cookie', sessionCookie(token));
+    expect((all.body as { total: number }).total).toBe(3);
+
+    const own = await request(app).get('/api/people?scope=own').set('Cookie', sessionCookie(token));
+    expect((own.body as { total: number }).total).toBe(1);
+  });
+
+  it('never shows the superadmin’s own person record, even to a general coordinator', async () => {
+    const superadmin = await createTestUser({ role: 'superadmin' });
+    const registrar = await createTestUser({ role: 'general_coordinator' });
+    const { token } = await createSession(registrar, { ip: null, userAgent: null });
+    await createTestPerson({ registeredBy: registrar._id });
+
+    const res = await request(app).get('/api/people').set('Cookie', sessionCookie(token));
+
+    expect(res.status).toBe(200);
+    const superadminPerson = await PersonModel.findById(superadmin.personId).lean();
+    const cedulas = (res.body as { items: { cedula: string }[] }).items.map((item) => item.cedula);
+    expect(cedulas).not.toContain(superadminPerson?.cedula);
+    expect((res.body as { total: number }).total).toBe(2); // the registrar's own person, plus one
+  });
 });
 
 describe('PATCH /api/people/:id', () => {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { booleanQueryParamSchema } from './pagination';
 import { docStatusSchema, personStatusSchema } from '../personStatus';
+import { personScopeSchema } from './people';
 import { leaderLevelSchema } from './promotions';
 
 /**
@@ -18,5 +19,6 @@ export const exportPeopleQuerySchema = z.object({
   recintoKey: z.string().trim().min(1).optional(),
   colegioId: z.coerce.number().int().optional(),
   missingCedulaPhoto: booleanQueryParamSchema.optional(),
+  scope: personScopeSchema.optional(),
 });
 export type ExportPeopleQuery = z.infer<typeof exportPeopleQuerySchema>;

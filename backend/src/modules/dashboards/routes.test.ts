@@ -235,9 +235,9 @@ describe('GET /api/dashboards/general', () => {
     const everything = await getGeneral(superadminToken);
     const everythingBody = everything.body as GeneralDashboardResponse;
     // Unscoped totalRegistered counts every person, matching /api/people (plan 8.2): the 2 above,
-    // plus one each for the registrar, the coordinator and the superadmin caller (every test user
-    // has a `people` document too).
-    expect(everythingBody.totals.totalRegistered).toBe(5);
+    // plus one each for the registrar and the coordinator (every test user has a `people` document
+    // too) — but never the superadmin's own, which this reconciles with /api/people in excluding.
+    expect(everythingBody.totals.totalRegistered).toBe(4);
     expect(everythingBody.totals.recintos).toBe(await RecintoModel.countDocuments());
   });
 
@@ -312,8 +312,9 @@ describe('GET /api/dashboards/general', () => {
   });
 
   it('fills registrationsOverTime for the last 30 days with no gaps, and lists this month’s birthdays', async () => {
-    // The caller is also who registers, so today's count is that one incidental person (every
-    // test user has a `people` document too, created "today" under fake time) plus this member.
+    // The caller is also who registers, and is themself a superadmin: their own incidental `people`
+    // document (every test user has one, created "today" under fake time) is excluded, so today's
+    // count is just this one explicit member.
     const caller = await createTestUser({ role: 'superadmin' });
     await createTestPerson({
       registeredBy: caller._id,
@@ -324,7 +325,7 @@ describe('GET /api/dashboards/general', () => {
     const body = (await getGeneral(token)).body as GeneralDashboardResponse;
 
     expect(body.registrationsOverTime).toHaveLength(30);
-    expect(body.registrationsOverTime[29]).toEqual({ date: '2026-06-15', count: 2 });
+    expect(body.registrationsOverTime[29]).toEqual({ date: '2026-06-15', count: 1 });
     expect(body.registrationsOverTime[0]?.date).toBe('2026-05-17');
     expect(body.birthdaysThisMonth.count).toBe(1);
     expect(body.birthdaysThisMonth.upcoming).toEqual([

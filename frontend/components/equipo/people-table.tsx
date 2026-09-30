@@ -6,6 +6,7 @@ import {
   type DocStatus,
   type PersonStatus,
   type PersonSummary,
+  type Role,
 } from '@heribertova/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -31,22 +32,35 @@ const text = messages.equipo;
 
 /** `/equipo` (plan 5.3): the caller's own scope (team/subtree/recinto per role, enforced server-side),
  * searchable and paginated, with document badges and the row actions (edit, upload photo, delete). */
+/** Roles whose full scope reaches further than their own subtree — the only ones "Mostrar todo"
+ * changes anything for. A team leader or aspirant's own subtree already *is* their full scope. */
+const ROLES_WITH_BROADER_SCOPE: readonly Role[] = [
+  'superadmin',
+  'general_coordinator',
+  'recinto_coordinator',
+];
+
 export function PeopleTable() {
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.me });
   const canValidate = usePermission('people.validate');
   const canExport = usePermission('people.export');
   const [q, setQ] = useState('');
   const [docStatus, setDocStatus] = useState<DocStatus | ''>('');
   const [status, setStatus] = useState<PersonStatus | ''>('');
+  const [showAll, setShowAll] = useState(false);
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<PersonSummary | null>(null);
   const [uploadingFor, setUploadingFor] = useState<PersonSummary | null>(null);
   const [deleting, setDeleting] = useState<PersonSummary | null>(null);
   const [validating, setValidating] = useState<PersonSummary | null>(null);
 
+  const canShowAll = me !== undefined && ROLES_WITH_BROADER_SCOPE.includes(me.role);
+
   const filters = {
     q: q.trim() || undefined,
     docStatus: docStatus || undefined,
     status: status || undefined,
+    scope: canShowAll && showAll ? ('all' as const) : ('own' as const),
     page,
   };
   const { data, isPending, isError, refetch } = useQuery({
@@ -101,6 +115,19 @@ export function PeopleTable() {
               ))}
             </NativeSelect>
           </Field>
+          {canShowAll && (
+            <label className="flex items-center gap-2 pb-2 text-sm">
+              <input
+                type="checkbox"
+                checked={showAll}
+                onChange={(event) => {
+                  setPage(1);
+                  setShowAll(event.target.checked);
+                }}
+              />
+              {text.filters.showAllLabel}
+            </label>
+          )}
         </div>
         <div className="flex items-end gap-2">
           {canExport && (
@@ -110,6 +137,7 @@ export function PeopleTable() {
                   q: filters.q,
                   status: filters.status,
                   docStatus: filters.docStatus,
+                  scope: filters.scope,
                 })}
                 download
               >

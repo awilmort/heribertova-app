@@ -86,11 +86,25 @@ export const personDetailSchema = personSummarySchema.extend({
 });
 export type PersonDetail = z.infer<typeof personDetailSchema>;
 
-/** `GET /api/people`: scope is always the caller's own (`scopeFilter`); `q` matches name, cédula or
- * nickname. `sector`/`recintoKey`/`colegioId` and `missingCedulaPhoto` back `/reportes`'s predefined
- * reports (plan 8.2) — `missingCedulaPhoto` is distinct from `docStatus`, since `docStatus: 'partial'`
- * doesn't say *which* of the two photos is missing (`people/photos.ts#docStatusFor`), and the cédula
- * photo is the one the registration flow requires. */
+/**
+ * How far `GET /api/people` reaches within the caller's scope (`scopeFilter`):
+ * - `own`: only people in the caller's own subtree (their `ancestors`) — "/equipo"'s default, since
+ *   a coordinator expects "Mi equipo" to mean their own team, not everyone their role can reach;
+ * - `all`: the caller's full `scopeFilter` — "Mostrar todo".
+ * Omitted, a caller gets `all` (unchanged for `/reportes` and the exports module, which never send
+ * this and have always meant the full scope).
+ */
+export const PERSON_SCOPES = ['own', 'all'] as const;
+export const personScopeSchema = z.enum(PERSON_SCOPES);
+export type PersonScope = z.infer<typeof personScopeSchema>;
+
+/** `GET /api/people`: scope is the caller's own by default, or their full `scopeFilter` scope with
+ * `scope=all`; `q` matches name, cédula or nickname. `sector`/`recintoKey`/`colegioId` and
+ * `missingCedulaPhoto` back `/reportes`'s predefined reports (plan 8.2) — `missingCedulaPhoto` is
+ * distinct from `docStatus`, since `docStatus: 'partial'` doesn't say *which* of the two photos is
+ * missing (`people/photos.ts#docStatusFor`), and the cédula photo is the one the registration flow
+ * requires. Either way, the superadmin's own `people` record never appears (`personFilter`).
+ */
 export const listPeopleQuerySchema = paginationQuerySchema.extend({
   q: z.string().trim().min(1).max(100).optional(),
   status: personStatusSchema.optional(),
@@ -99,6 +113,7 @@ export const listPeopleQuerySchema = paginationQuerySchema.extend({
   recintoKey: z.string().trim().min(1).optional(),
   colegioId: z.coerce.number().int().optional(),
   missingCedulaPhoto: booleanQueryParamSchema.optional(),
+  scope: personScopeSchema.optional(),
 });
 export type ListPeopleQuery = z.infer<typeof listPeopleQuerySchema>;
 

@@ -455,6 +455,7 @@ export const messages = {
       docStatusAll: 'Cualquiera',
       statusLabel: 'Estado',
       statusAll: 'Todos',
+      showAllLabel: 'Mostrar todo',
     },
     table: {
       name: 'Nombre',
