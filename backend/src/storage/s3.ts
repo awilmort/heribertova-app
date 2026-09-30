@@ -30,6 +30,11 @@ export function createS3Client(config: S3Config): S3Client {
       accessKeyId: config.AWS_ACCESS_KEY_ID,
       secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
     },
+    // Since SDK v3.729 the default ('WHEN_SUPPORTED') signs every PutObject with a request checksum.
+    // For a presigned PUT (plan 9.1's browser upload) the SDK has no body yet, so it signs a checksum
+    // of empty content; S3 then resets the connection mid-upload once the real bytes don't match.
+    // 'WHEN_REQUIRED' restores the pre-3.729 behavior: only add a checksum when the caller asks for one.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
   });
 }
 
