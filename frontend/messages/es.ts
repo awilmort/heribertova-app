@@ -221,6 +221,24 @@ export const messages = {
         viewLink: 'Ver recintos',
       },
     },
+    map: {
+      title: 'Mapa de cobertura por zona',
+      caption:
+        'Zonas del casco urbano de Higüey, según el plano de L. Villavicencio (2015); georreferenciación aproximada. Verón, Punta Cana, La Otra Banda y Las Lagunas de Nisibón ya no pertenecen a Higüey y no aparecen aquí. Las zonas en gris no tienen un sector del padrón identificado; la tabla de arriba sigue siendo la fuente completa.',
+      legend: {
+        low: 'Menos cobertura',
+        high: 'Más cobertura',
+        noData: 'Sin datos en el mapa',
+      },
+      tooltip: {
+        sector: 'Sector',
+        voters: 'Votantes',
+        members: 'Registrados',
+        share: 'Cobertura',
+        noData: 'Esta zona no tiene un sector del padrón identificado.',
+        viewLink: 'Ver recintos',
+      },
+    },
     ageBands: {
       title: 'Miembros y votantes por edad',
       voters: 'Votantes',

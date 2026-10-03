@@ -12,6 +12,7 @@ import {
   CHART_SERIES_B,
   CHART_TEXT_COLOR,
 } from '@/components/charts/theme';
+import { SectorCoverageMap } from '@/components/panel/sector-coverage-map';
 import { SectorCoverageTable } from '@/components/panel/sector-coverage-table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
@@ -178,6 +179,15 @@ export function GeneralDashboard() {
         </CardHeader>
         <CardContent>
           <SectorCoverageTable items={data.coverageBySector} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{text.map.title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SectorCoverageMap items={data.coverageBySector} />
         </CardContent>
       </Card>
 
