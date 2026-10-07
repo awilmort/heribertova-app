@@ -11,6 +11,7 @@ describe('PERMISSIONS', () => {
         'people.update',
         'people.delete',
         'people.validate',
+        'people.downloadPhotos',
         'people.export',
         'leaders.nominate',
         'leaders.promoteManual',
@@ -68,6 +69,7 @@ describe('ROLE_PERMISSIONS', () => {
       'users.manage',
       'recintos.assignCoordinator',
       'leaders.promoteManual',
+      'people.downloadPhotos',
     ] as const) {
       expect(ROLES.filter((role) => hasPermission(role, permission))).toEqual([
         'superadmin',

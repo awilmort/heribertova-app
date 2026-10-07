@@ -15,8 +15,10 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 export interface ObjectStorage {
   put(key: string, body: Buffer, contentType: string): Promise<void>;
   delete(key: string): Promise<void>;
-  /** A time-limited URL a browser can GET the object from directly, without a session. */
-  presignGet(key: string, expiresInSeconds: number): Promise<string>;
+  /** A time-limited URL a browser can GET the object from directly, without a session. With
+   * `downloadAs`, the response carries `Content-Disposition: attachment` so the browser saves it
+   * under that filename instead of displaying it. */
+  presignGet(key: string, expiresInSeconds: number, downloadAs?: string): Promise<string>;
   /** A time-limited URL a browser can PUT the object to directly (plan 9.1's voter-file upload). The
    * PUT's `Content-Type` header must match `contentType` exactly, or the signature is refused. */
   presignPut(key: string, contentType: string, expiresInSeconds: number): Promise<string>;
@@ -39,10 +41,18 @@ export function createS3ObjectStorage(client: S3Client, bucket: string): ObjectS
     async delete(key) {
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
-    presignGet(key, expiresInSeconds) {
-      return getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), {
-        expiresIn: expiresInSeconds,
-      });
+    presignGet(key, expiresInSeconds, downloadAs) {
+      return getSignedUrl(
+        client,
+        new GetObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          ResponseContentDisposition: downloadAs
+            ? `attachment; filename="${downloadAs}"`
+            : undefined,
+        }),
+        { expiresIn: expiresInSeconds },
+      );
     },
     presignPut(key, contentType, expiresInSeconds) {
       return getSignedUrl(

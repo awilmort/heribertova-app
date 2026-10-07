@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DeletePersonDialog } from '@/components/equipo/delete-person-dialog';
 import { EditPersonDialog } from '@/components/equipo/edit-person-dialog';
+import { MemberAvatar } from '@/components/equipo/member-avatar';
 import { NewPersonDialog } from '@/components/equipo/new-person-dialog';
 import { PhotoUploadDialog } from '@/components/equipo/photo-upload-dialog';
 import { ValidatePersonDrawer } from '@/components/equipo/validate-person-drawer';
@@ -173,10 +174,15 @@ export function PeopleTable() {
               {data.items.map((person) => (
                 <tr key={person.id} className="border-t">
                   <td className="px-3 py-2">
-                    {person.fullName}
-                    {person.nickname && (
-                      <span className="text-muted-foreground"> · {person.nickname}</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <MemberAvatar person={person} />
+                      <span>
+                        {person.fullName}
+                        {person.nickname && (
+                          <span className="text-muted-foreground"> · {person.nickname}</span>
+                        )}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-3 py-2">{formatCedula(person.cedula)}</td>
                   <td className="px-3 py-2">

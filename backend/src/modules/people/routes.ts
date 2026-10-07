@@ -24,7 +24,12 @@ import type { ApiRoute } from '../../routing/apiRoute';
 import type { ObjectStorage } from '../../storage/objectStorage';
 import { actorOf } from '../audit/service';
 import { checkEligibility } from './policy';
-import { getPersonPhotoUrl, uploadPersonPhoto } from './photos';
+import {
+  getPersonAvatarUrl,
+  getPersonPhotoDownloadUrl,
+  getPersonPhotoUrl,
+  uploadPersonPhoto,
+} from './photos';
 import { deletePerson, getPerson, listPeople, registerPerson, updatePerson } from './service';
 
 const personIdParamsSchema = z.object({ id: objectIdSchema });
@@ -175,6 +180,32 @@ export function createPeopleRoutes({
         async (req, res) => {
           const { id, kind } = req.params as z.infer<typeof personPhotoParamsSchema>;
           const url = await getPersonPhotoUrl(actorOf(req), id, kind, objectStorage);
+          res.redirect(302, url);
+        },
+      ],
+    },
+    {
+      method: 'get',
+      path: '/people/:id/photos/:kind/download',
+      access: 'people.downloadPhotos',
+      handlers: [
+        validate({ params: personPhotoParamsSchema }),
+        async (req, res) => {
+          const { id, kind } = req.params as z.infer<typeof personPhotoParamsSchema>;
+          const url = await getPersonPhotoDownloadUrl(actorOf(req), id, kind, objectStorage);
+          res.redirect(302, url);
+        },
+      ],
+    },
+    {
+      method: 'get',
+      path: '/people/:id/avatar',
+      access: 'authenticated',
+      handlers: [
+        validate({ params: personIdParamsSchema }),
+        async (req, res) => {
+          const { id } = req.params as z.infer<typeof personIdParamsSchema>;
+          const url = await getPersonAvatarUrl(actorOf(req), id, objectStorage);
           res.redirect(302, url);
         },
       ],

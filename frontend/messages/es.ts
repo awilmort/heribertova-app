@@ -544,6 +544,7 @@ export const messages = {
     },
     editDialog: {
       title: (name: string) => `Editar a ${name}`,
+      photosTitle: 'Fotos',
       save: 'Guardar',
       saving: 'Guardando…',
       cancel: 'Cancelar',
@@ -574,6 +575,7 @@ export const messages = {
       selfieLabel: 'Selfie (opcional)',
       add: 'Agregar',
       replace: 'Reemplazar',
+      download: 'Descargar',
       uploading: 'Subiendo…',
       retry: 'Reintentar',
     },

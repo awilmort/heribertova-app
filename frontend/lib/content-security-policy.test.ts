@@ -47,4 +47,13 @@ describe('buildContentSecurityPolicy', () => {
       "'self' https://*.s3.us-east-2.amazonaws.com",
     );
   });
+
+  it('allows loading photo <img> tags from the same media bucket host as connect-src', () => {
+    expect(directive(buildContentSecurityPolicy('n', true), 'img-src')).toBe(
+      "'self' blob: data: http://localhost:9000",
+    );
+    expect(directive(buildContentSecurityPolicy('n', false), 'img-src')).toBe(
+      "'self' blob: data: https://*.s3.us-east-2.amazonaws.com",
+    );
+  });
 });

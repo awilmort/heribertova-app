@@ -300,10 +300,22 @@ export const api = {
     apiRequest('/backups', { schema: backupManifestSchema, init: { method: 'POST' } }),
 };
 
+/** `GET /api/people/:id/photos/:kind/download`: redirects to a presigned attachment URL; only
+ * superadmins and general coordinators (`people.downloadPhotos`) are allowed. */
+export function personPhotoDownloadUrl(id: string, kind: PhotoKind): string {
+  return `/api/people/${id}/photos/${kind}/download`;
+}
+
 /** `GET /api/people/:id/photos/:kind` (plan 5.2) redirects to a presigned URL: an `<img>` follows it
  * like any other same-origin request, cookie included, so this is a plain URL, not an `apiRequest`. */
 export function personPhotoUrl(id: string, kind: PhotoKind): string {
   return `/api/people/${id}/photos/${kind}`;
+}
+
+/** `GET /api/people/:id/avatar`: the face auto-cropped from the cédula photo. Same redirect shape
+ * as `personPhotoUrl`, so it's a plain URL too — only requested when `hasAvatar` is true. */
+export function personAvatarUrl(id: string): string {
+  return `/api/people/${id}/avatar`;
 }
 
 /** `GET /api/exports/people.xlsx` (plan 6.4): a plain URL, like the photo one above — GET needs no

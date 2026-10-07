@@ -65,6 +65,9 @@ export const personSummarySchema = z.object({
   /** Which of the two photo slots are filled (plan 5.2/5.3): `docStatus` alone can't tell the UI
    * which one is still missing. */
   photos: z.object({ cedula: z.boolean(), selfie: z.boolean() }),
+  /** Whether a member avatar has been auto-cropped from the cédula photo (`GET
+   * /api/people/:id/avatar`). Separate from `photos`: it's never uploaded directly. */
+  hasAvatar: z.boolean(),
   /** True when this member's underlying voter record is `inactive` (plan 9.2): a later padrón cut no
    * longer lists them. The member stays registered; the UI flags it ("ya no figura en el padrón"). */
   voterInactive: z.boolean(),

@@ -32,6 +32,7 @@ const created: PersonDetail = {
   status: null,
   docStatus: 'pending',
   photos: { cedula: false, selfie: false },
+  hasAvatar: false,
   voterInactive: false,
   createdAt: new Date().toISOString(),
   phone: '8095551234',

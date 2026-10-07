@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
+import { PhotoSlot } from '@/components/equipo/photo-slot';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,7 +26,8 @@ import { messages } from '@/messages/es';
 const text = messages.equipo.editDialog;
 const fieldText = messages.equipo.newMemberDialog;
 
-/** "Editar" on a member row (plan 5.3): the contact fields `PATCH /api/people/:id` accepts. The
+/** "Editar" on a member row (plan 5.3): the contact fields `PATCH /api/people/:id` accepts, plus
+ * viewing and replacing the cédula/selfie photos (same `PhotoSlot` as `ValidatePersonDrawer`). The
  * list only carries `PersonSummary` (no contact fields), so this loads the full record first. */
 export function EditPersonDialog({
   person,
@@ -74,6 +76,7 @@ function EditPersonForm({
   const [nickname, setNickname] = useState(detail.nickname ?? '');
   const [phone, setPhone] = useState(detail.phone);
   const [email, setEmail] = useState(detail.email ?? '');
+  const [photos, setPhotos] = useState(detail.photos);
 
   const update = useMutation({
     mutationFn: () =>
@@ -130,6 +133,22 @@ function EditPersonForm({
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-3 border-t pt-4">
+        <p className="text-sm font-medium">{text.photosTitle}</p>
+        <PhotoSlot
+          personId={detail.id}
+          kind="cedula"
+          hasPhoto={photos.cedula}
+          onUploaded={(updated) => setPhotos(updated.photos)}
+        />
+        <PhotoSlot
+          personId={detail.id}
+          kind="selfie"
+          hasPhoto={photos.selfie}
+          onUploaded={(updated) => setPhotos(updated.photos)}
         />
       </div>
 

@@ -2,11 +2,12 @@
 
 import type { PersonDetail, PhotoKind } from '@heribertova/shared';
 import { useMutation } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { Can } from '@/components/auth/can';
 import { Button } from '@/components/ui/button';
 import { compressForUpload } from '@/lib/imageCompress';
-import { api, ApiError, personPhotoUrl } from '@/lib/api';
+import { api, ApiError, personPhotoDownloadUrl, personPhotoUrl } from '@/lib/api';
 import { messages } from '@/messages/es';
 
 const text = messages.equipo.photos;
@@ -84,6 +85,16 @@ export function PhotoSlot({
             {upload.isPending && <Loader2 className="animate-spin" aria-hidden />}
             {actionLabel}
           </Button>
+          {hasPhoto && (
+            <Can permission="people.downloadPhotos">
+              <Button asChild variant="outline" size="sm">
+                <a href={personPhotoDownloadUrl(personId, kind)}>
+                  <Download aria-hidden />
+                  {text.download}
+                </a>
+              </Button>
+            </Can>
+          )}
           <input
             ref={inputRef}
             type="file"

@@ -52,6 +52,10 @@ export interface Person {
   registeredBy: Types.ObjectId;
   status: PersonStatus | null;
   photos: { cedula?: StoredPhoto; selfie?: StoredPhoto };
+  /** Object key of the avatar auto-cropped from the cédula photo (`avatarExtraction.ts`), or `null`
+   * when no face has been found yet. Separate from `photos`: it is never uploaded directly, and its
+   * presence doesn't count toward `docStatus`. */
+  avatarKey: string | null;
   docStatus: DocStatus;
   validatedBy: Types.ObjectId | null;
   validatedAt: Date | null;
@@ -104,6 +108,7 @@ const personSchema = new Schema<Person>(
     registeredBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     status: { type: String, enum: [...PERSON_STATUSES, null], default: null },
     photos: { cedula: storedPhotoSchema, selfie: storedPhotoSchema },
+    avatarKey: { type: String, default: null },
     docStatus: { type: String, enum: DOC_STATUSES, required: true },
     validatedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     validatedAt: { type: Date, default: null },

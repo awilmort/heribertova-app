@@ -44,6 +44,7 @@ function toSummary(person: Person, voterInactive: boolean): PersonSummary {
     // `.lean()` documents predating plan 5.2, or created without touching photos, have no `photos`
     // key at all (Mongoose doesn't default an unset nested path), so this never assumes it exists.
     photos: { cedula: Boolean(person.photos?.cedula), selfie: Boolean(person.photos?.selfie) },
+    hasAvatar: Boolean(person.avatarKey),
     voterInactive,
     createdAt: person.createdAt.toISOString(),
   };
