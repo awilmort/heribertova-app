@@ -1,6 +1,7 @@
 'use client';
 
 import { formatCedula, type ListPeopleResponse } from '@heribertova/shared';
+import { PersonProfileTrigger } from '@/components/equipo/person-profile-trigger';
 import { Button } from '@/components/ui/button';
 import { messages } from '@/messages/es';
 
@@ -48,10 +49,7 @@ export function PeopleResultsTable({
             {data.items.map((person) => (
               <tr key={person.id} className="border-t">
                 <td className="px-3 py-2">
-                  {person.fullName}
-                  {person.nickname && (
-                    <span className="text-muted-foreground"> · {person.nickname}</span>
-                  )}
+                  <PersonProfileTrigger person={person} />
                 </td>
                 <td className="px-3 py-2">{formatCedula(person.cedula)}</td>
                 <td className="px-3 py-2">

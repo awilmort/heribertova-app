@@ -5,12 +5,21 @@ import { UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { personAvatarUrl, personPhotoUrl } from '@/lib/api';
 
+const AVATAR_SIZE = { sm: 'size-8', lg: 'size-28' } as const;
+const ICON_SIZE = { sm: 'size-4', lg: 'size-12' } as const;
+
 /**
- * The small headshot next to a member's name in `PeopleTable`: the face auto-cropped from their
+ * The headshot next to a member's name in `PeopleTable`: the face auto-cropped from their
  * cédula photo, the manually-uploaded selfie if that isn't available yet, or a placeholder icon
  * when neither photo has been uploaded.
  */
-export function MemberAvatar({ person }: { person: PersonSummary }) {
+export function MemberAvatar({
+  person,
+  size = 'sm',
+}: {
+  person: PersonSummary;
+  size?: 'sm' | 'lg';
+}) {
   const [failed, setFailed] = useState(false);
   const imageSrc = person.hasAvatar
     ? personAvatarUrl(person.id)
@@ -20,8 +29,10 @@ export function MemberAvatar({ person }: { person: PersonSummary }) {
 
   if (!imageSrc || failed) {
     return (
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <UserRound className="size-4" aria-hidden />
+      <span
+        className={`flex shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ${AVATAR_SIZE[size]}`}
+      >
+        <UserRound className={ICON_SIZE[size]} aria-hidden />
       </span>
     );
   }
@@ -31,7 +42,7 @@ export function MemberAvatar({ person }: { person: PersonSummary }) {
     <img
       src={imageSrc}
       alt=""
-      className="size-8 shrink-0 rounded-full object-cover"
+      className={`shrink-0 rounded-full object-cover ${AVATAR_SIZE[size]}`}
       onError={() => setFailed(true)}
     />
   );
