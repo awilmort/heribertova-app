@@ -290,7 +290,7 @@ The cloud-side items (Atlas/S3/IAM least privilege) are verified in 10.1.
 Done when: every item is marked pass or not-applicable with a note, and findings are fixed.
 
 ---
-
+ 
 ## PHASE 10 — Deployment and launch
 
 **10.1 Cloud setup and first production deploy**
