@@ -99,7 +99,6 @@ export function PhotoSlot({
             ref={inputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             className="sr-only"
             onChange={(event) => {
               void pick(event.target.files);
